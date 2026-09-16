@@ -46,5 +46,10 @@ npm run preview # servir o build de produção localmente
 
 ## Documentação de produto e design
 
+Antes de mexer no projeto, vale ler nessa ordem — é o que permite qualquer pessoa (ou
+agente) continuar de onde a última parou sem precisar perguntar tudo de novo:
+
 - `PRODUCT.md` — contexto de produto, usuários, posicionamento e princípios
 - `DESIGN.md` — sistema visual, tokens e convenções de UI adotados
+- `CONTEXT.md` — glossário dos termos do domínio (Base, Versão, Pendência, Desligamento, etc.)
+- `docs/adr/` — decisões que foram tomadas, o porquê, e o que **não** fazer sem revisitar a decisão
