@@ -31,10 +31,10 @@ export default function Login() {
             className="mt-6 flex w-full items-center gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-brand/40 hover:bg-brand-soft/40"
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-medium text-brand">
-              {initials("Maria Andrade")}
+              {initials("Thaissa Figueira")}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-foreground">Maria Andrade</span>
+              <span className="block truncate text-sm font-medium text-foreground">Thaissa Figueira</span>
               <span className="block truncate text-xs text-muted-foreground">Analista de RH · Venturus</span>
             </span>
           </button>
@@ -47,7 +47,7 @@ export default function Login() {
               navigate("/");
             }}
           >
-            Entrar como Maria Andrade
+            Entrar como Thaissa Figueira
           </Button>
 
           <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">

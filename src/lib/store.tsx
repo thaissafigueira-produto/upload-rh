@@ -37,7 +37,7 @@ export interface DemoUser {
   cargo: string;
 }
 
-const DEMO_USER: DemoUser = { nome: "Maria Andrade", email: "maria.andrade@venturus.com.br", cargo: "Analista de RH" };
+const DEMO_USER: DemoUser = { nome: "Thaissa Figueira", email: "thaissa.figueira@venturus.com.br", cargo: "Analista de RH" };
 
 interface PendingUpload {
   file: File;

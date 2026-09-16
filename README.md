@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Acesse `http://localhost:5173` e entre com o usuário de demonstração (Maria Andrade,
+Acesse `http://localhost:5173` e entre com o usuário de demonstração (Thaissa Figueira,
 Analista de RH da Venturus) na tela de login.
 
 Outros comandos:

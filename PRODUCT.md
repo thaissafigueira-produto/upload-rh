@@ -12,7 +12,7 @@ React + Vite + TypeScript + Tailwind CSS + shadcn/ui. Frontend-only for V1: stat
 
 ## Users
 
-HR (RH) professionals at companies that offer Guapeco benefits to their employees. The primary demo user is "Maria," an HR person at a demo company ("Venturus"). She is not technical and needs to keep the eligible-employee population accurate: consulting the current base, uploading updated spreadsheets, resolving what changed, and tracking terminations/CNPJs — all in plain, non-technical Portuguese (pt-BR).
+HR (RH) professionals at companies that offer Guapeco benefits to their employees. The primary demo user is "Thaissa," an HR person at a demo company ("Venturus"). She is not technical and needs to keep the eligible-employee population accurate: consulting the current base, uploading updated spreadsheets, resolving what changed, and tracking terminations/CNPJs — all in plain, non-technical Portuguese (pt-BR).
 
 ## Product Purpose
 
@@ -40,7 +40,7 @@ HR periodically exports an employee roster (XLSX/CSV) from internal systems and 
 
 ## Brand Commitments
 
-Product is a Guapeco product ("Guapeco" wordmark in the top nav alongside company name and user menu). Demo tenant: **Venturus**. Demo HR user: **Maria** (greeted as "Olá, Maria 👋" on the overview page).
+Product is a Guapeco product ("Guapeco" wordmark in the top nav alongside company name and user menu). Demo tenant: **Venturus**. Demo HR user: **Thaissa** (greeted as "Olá, Thaissa 👋" on the overview page).
 
 ## Evidence on Hand
 

@@ -1,4 +1,4 @@
-import { mulberry32, pick, pickN } from "@/lib/rng";
+﻿import { mulberry32, pick, pickN } from "@/lib/rng";
 import type {
   AuditEvent,
   BaseVersion,
@@ -142,7 +142,7 @@ export function generateDemoData(): GenResult {
   let auditSeq = 0;
   const pushAudit = (data: string, acao: AuditEvent["acao"], descricao: string) => {
     auditSeq += 1;
-    audit.push({ id: `audit-${pad(auditSeq, 4)}`, usuario: "Maria Andrade", data, acao, descricao });
+    audit.push({ id: `audit-${pad(auditSeq, 4)}`, usuario: "Thaissa Figueira", data, acao, descricao });
   };
 
   // --- Version 1: first 96 identities enter the base.
@@ -154,7 +154,7 @@ export function generateDemoData(): GenResult {
   pushAudit(versionDates[0], "upload_concluido", "96 colaboradores processados com sucesso");
   pushAudit(versionDates[0], "atualizacao_confirmada", "Base inicial confirmada — versão 1");
   versions.push({
-    id: "v1", numero: 1, data: versionDates[0], usuario: "Maria Andrade",
+    id: "v1", numero: 1, data: versionDates[0], usuario: "Thaissa Figueira",
     arquivo: "base-inicial.xlsx", total: v1Ids.length, novos: v1Ids.length, removidos: 0,
     alterados: 0, status: "confirmada",
     diff: { novos: v1Ids.map((i) => records.get(i.id)!), removidos: [], alterados: [] },
@@ -297,7 +297,7 @@ export function generateDemoData(): GenResult {
       id: `v${numero}`,
       numero,
       data: versionDate,
-      usuario: "Maria Andrade",
+      usuario: "Thaissa Figueira",
       arquivo,
       total: totalAtivos,
       novos: novosEmployees.length,
