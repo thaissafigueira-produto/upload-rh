@@ -24,7 +24,16 @@ function normalizeHeader(header: string) {
 
 export class ParseError extends Error {}
 
-export async function parseEmployeeFile(file: File): Promise<ParsedRow[]> {
+const CONTENT_FIELDS: (keyof ParsedRow)[] = ["nome", "email", "matricula", "cnpj", "departamento", "cargo", "status"];
+
+export interface ParseResult {
+  rows: ParsedRow[];
+  /** Rows skipped because only one field (or none) was filled — likely a stray note or
+   * separator left in the spreadsheet, not an actual colaborador. */
+  linhasIgnoradas: number;
+}
+
+export async function parseEmployeeFile(file: File): Promise<ParseResult> {
   const name = file.name.toLowerCase();
   const isCsv = name.endsWith(".csv");
   const isSpreadsheet = name.endsWith(".xlsx") || name.endsWith(".xls");
@@ -67,11 +76,12 @@ export async function parseEmployeeFile(file: File): Promise<ParsedRow[]> {
   }
 
   const parsed: ParsedRow[] = [];
+  let linhasIgnoradas = 0;
   for (let i = 1; i < rows.length; i++) {
     const raw = rows[i];
     if (raw.every((cell) => String(cell).trim() === "")) continue;
     const get = (key: keyof ParsedRow) => String(raw[columnIndex[key]!] ?? "").trim();
-    parsed.push({
+    const row: ParsedRow = {
       linha: i + 1,
       nome: get("nome"),
       email: get("email"),
@@ -80,8 +90,19 @@ export async function parseEmployeeFile(file: File): Promise<ParsedRow[]> {
       departamento: get("departamento"),
       cargo: get("cargo"),
       status: get("status"),
-    });
+    };
+
+    // A row with at most one field filled is more likely a stray note or separator
+    // (e.g. "Cenário 1: ...") than an actual colaborador — skip it instead of raising
+    // a wall of "campo obrigatório ausente" errors for a row that was never data.
+    const filledFields = CONTENT_FIELDS.filter((key) => row[key]).length;
+    if (filledFields <= 1) {
+      linhasIgnoradas += 1;
+      continue;
+    }
+
+    parsed.push(row);
   }
 
-  return parsed;
+  return { rows: parsed, linhasIgnoradas };
 }

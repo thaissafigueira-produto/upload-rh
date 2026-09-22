@@ -3,6 +3,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { ChangedEmployeesTable, NewEmployeesTable, RemovedEmployeesTable } from "@/components/upload/ChangeTables";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Dropzone } from "@/components/upload/Dropzone";
@@ -33,9 +34,17 @@ export default function UpdateBase() {
     setParseError(null);
     setStep("analisando");
     try {
-      const rows = await parseEmployeeFile(file);
+      const { rows, linhasIgnoradas } = await parseEmployeeFile(file);
       const validation = validateRows(rows);
       await new Promise((r) => setTimeout(r, 700));
+
+      if (linhasIgnoradas > 0) {
+        toast.info(
+          linhasIgnoradas === 1
+            ? "1 linha da planilha foi ignorada por estar quase vazia (provável anotação, não um colaborador)."
+            : `${linhasIgnoradas} linhas da planilha foram ignoradas por estarem quase vazias (prováveis anotações, não colaboradores).`,
+        );
+      }
 
       if (validation.temErroCritico) {
         setSummary(validation);
