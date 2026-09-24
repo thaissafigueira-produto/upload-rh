@@ -1,3 +1,4 @@
+import { onlyDigits } from "@/lib/cnpj";
 import type { ParsedRow, ValidationErrorRow, ValidationSummary } from "@/types";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -8,52 +9,43 @@ const REQUIRED_FIELDS: { key: keyof ParsedRow; label: string }[] = [
   { key: "email", label: "E-mail corporativo" },
   { key: "matricula", label: "Matrícula" },
   { key: "cnpj", label: "CNPJ" },
-  { key: "departamento", label: "Departamento" },
-  { key: "cargo", label: "Cargo" },
-  { key: "status", label: "Status" },
 ];
 
-export function validateRows(rows: ParsedRow[]): ValidationSummary {
+export const PROBLEMA = {
+  ausente: "Campo obrigatório não preenchido",
+  emailInvalido: "O e-mail não está em um formato válido",
+  statusInvalido: 'O status deve ser "Ativo" ou "Desligado"',
+  cnpjNaoCadastrado: "Este CNPJ não pertence à sua empresa",
+  matriculaDuplicada: "Esta matrícula aparece mais de uma vez no arquivo",
+  emailDuplicado: "Este e-mail aparece mais de uma vez no arquivo",
+} as const;
+
+export function validateRows(rows: ParsedRow[], cnpjsCadastrados: string[]): ValidationSummary {
   const errosDetalhados: ValidationErrorRow[] = [];
   const rowHasCriticalError = new Set<number>();
+  const duplicatedRows = new Set<number>();
+  const registered = new Set(cnpjsCadastrados.map(onlyDigits));
 
   const matriculaSeen = new Map<string, number[]>();
   const emailSeen = new Map<string, number[]>();
 
+  const addError = (row: ParsedRow, campo: string, problema: string) => {
+    errosDetalhados.push({ linha: row.linha, colaborador: row.nome || `Linha ${row.linha}`, campo, problema });
+    rowHasCriticalError.add(row.linha);
+  };
+
   for (const row of rows) {
-    const nomeExibicao = row.nome || `Linha ${row.linha}`;
-
     for (const field of REQUIRED_FIELDS) {
-      if (!row[field.key]) {
-        errosDetalhados.push({
-          linha: row.linha,
-          colaborador: nomeExibicao,
-          campo: field.label,
-          problema: "Campo obrigatório ausente",
-        });
-        rowHasCriticalError.add(row.linha);
-      }
+      if (!row[field.key]) addError(row, field.label, PROBLEMA.ausente);
     }
 
-    if (row.email && !EMAIL_REGEX.test(row.email)) {
-      errosDetalhados.push({
-        linha: row.linha,
-        colaborador: nomeExibicao,
-        campo: "E-mail corporativo",
-        problema: "Formato de e-mail inválido",
-      });
-      rowHasCriticalError.add(row.linha);
-    }
+    if (row.email && !EMAIL_REGEX.test(row.email)) addError(row, "E-mail corporativo", PROBLEMA.emailInvalido);
 
     if (row.status && !VALID_STATUS.includes(row.status.trim().toLowerCase())) {
-      errosDetalhados.push({
-        linha: row.linha,
-        colaborador: nomeExibicao,
-        campo: "Status",
-        problema: 'Status deve ser "Ativo" ou "Desligado"',
-      });
-      rowHasCriticalError.add(row.linha);
+      addError(row, "Status", PROBLEMA.statusInvalido);
     }
+
+    if (row.cnpj && !registered.has(onlyDigits(row.cnpj))) addError(row, "CNPJ", PROBLEMA.cnpjNaoCadastrado);
 
     if (row.matricula) {
       const key = row.matricula.trim().toLowerCase();
@@ -65,39 +57,23 @@ export function validateRows(rows: ParsedRow[]): ValidationSummary {
     }
   }
 
-  let duplicados = 0;
+  const byLine = new Map(rows.map((r) => [r.linha, r]));
   for (const [, linhas] of matriculaSeen) {
-    if (linhas.length > 1) {
-      duplicados += linhas.length;
-      for (const linha of linhas) {
-        const row = rows.find((r) => r.linha === linha)!;
-        errosDetalhados.push({
-          linha,
-          colaborador: row.nome || `Linha ${linha}`,
-          campo: "Matrícula",
-          problema: "Matrícula duplicada no arquivo",
-        });
-        rowHasCriticalError.add(linha);
-      }
+    if (linhas.length < 2) continue;
+    for (const linha of linhas) {
+      duplicatedRows.add(linha);
+      addError(byLine.get(linha)!, "Matrícula", PROBLEMA.matriculaDuplicada);
     }
   }
   for (const [, linhas] of emailSeen) {
-    if (linhas.length > 1) {
-      for (const linha of linhas) {
-        const row = rows.find((r) => r.linha === linha)!;
-        errosDetalhados.push({
-          linha,
-          colaborador: row.nome || `Linha ${linha}`,
-          campo: "E-mail corporativo",
-          problema: "E-mail duplicado no arquivo",
-        });
-        rowHasCriticalError.add(linha);
-      }
+    if (linhas.length < 2) continue;
+    for (const linha of linhas) {
+      duplicatedRows.add(linha);
+      addError(byLine.get(linha)!, "E-mail corporativo", PROBLEMA.emailDuplicado);
     }
   }
 
-  const emailsInvalidos = errosDetalhados.filter((e) => e.problema === "Formato de e-mail inválido").length;
-  const camposObrigatoriosAusentes = errosDetalhados.filter((e) => e.problema === "Campo obrigatório ausente").length;
+  const count = (problema: string) => errosDetalhados.filter((e) => e.problema === problema).length;
 
   errosDetalhados.sort((a, b) => a.linha - b.linha);
 
@@ -105,9 +81,10 @@ export function validateRows(rows: ParsedRow[]): ValidationSummary {
     totalRegistros: rows.length,
     registrosValidos: rows.length - rowHasCriticalError.size,
     erros: rowHasCriticalError.size,
-    duplicados,
-    emailsInvalidos,
-    camposObrigatoriosAusentes,
+    duplicados: duplicatedRows.size,
+    emailsInvalidos: count(PROBLEMA.emailInvalido),
+    camposObrigatoriosAusentes: count(PROBLEMA.ausente),
+    cnpjsNaoCadastrados: count(PROBLEMA.cnpjNaoCadastrado),
     errosDetalhados,
     temErroCritico: rowHasCriticalError.size > 0,
   };

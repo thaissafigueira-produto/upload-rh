@@ -7,12 +7,20 @@ const HEADER_MAP: Record<string, keyof ParsedRow> = {
   "email corporativo": "email",
   email: "email",
   matricula: "matricula",
-  "matrícula": "matricula",
   cnpj: "cnpj",
   departamento: "departamento",
   cargo: "cargo",
   status: "status",
 };
+
+const REQUIRED: { key: keyof ParsedRow; label: string }[] = [
+  { key: "nome", label: "Nome" },
+  { key: "email", label: "E-mail corporativo" },
+  { key: "matricula", label: "Matrícula" },
+  { key: "cnpj", label: "CNPJ" },
+];
+
+const CONTENT_FIELDS: (keyof ParsedRow)[] = ["nome", "email", "matricula", "cnpj", "departamento", "cargo", "status"];
 
 function normalizeHeader(header: string) {
   return header
@@ -24,12 +32,9 @@ function normalizeHeader(header: string) {
 
 export class ParseError extends Error {}
 
-const CONTENT_FIELDS: (keyof ParsedRow)[] = ["nome", "email", "matricula", "cnpj", "departamento", "cargo", "status"];
-
 export interface ParseResult {
   rows: ParsedRow[];
-  /** Rows skipped because only one field (or none) was filled — likely a stray note or
-   * separator left in the spreadsheet, not an actual colaborador. */
+  /** Linhas com no máximo um campo preenchido: provável anotação ou separador, não um colaborador. */
   linhasIgnoradas: number;
 }
 
@@ -42,12 +47,16 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
   }
 
   let workbook: XLSX.WorkBook;
-  if (isCsv) {
-    const text = await file.text();
-    workbook = XLSX.read(text, { type: "string" });
-  } else {
-    const buffer = await file.arrayBuffer();
-    workbook = XLSX.read(buffer, { type: "array" });
+  try {
+    if (isCsv) {
+      const text = await file.text();
+      workbook = XLSX.read(text, { type: "string" });
+    } else {
+      const buffer = await file.arrayBuffer();
+      workbook = XLSX.read(buffer, { type: "array" });
+    }
+  } catch {
+    throw new ParseError("Não foi possível abrir esse arquivo. Confira se ele não está corrompido e tente novamente.");
   }
 
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -67,11 +76,10 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
     if (mapped && columnIndex[mapped] === undefined) columnIndex[mapped] = idx;
   });
 
-  const required: (keyof ParsedRow)[] = ["nome", "email", "matricula", "cnpj", "departamento", "cargo", "status"];
-  const missingColumns = required.filter((key) => columnIndex[key] === undefined);
-  if (missingColumns.length > 0) {
+  const missing = REQUIRED.filter((field) => columnIndex[field.key] === undefined).map((field) => field.label);
+  if (missing.length > 0) {
     throw new ParseError(
-      `O arquivo não segue o modelo esperado. Colunas ausentes: ${missingColumns.join(", ")}.`,
+      `O arquivo não segue o modelo esperado. Colunas ausentes: ${missing.join(", ")}. Baixe o modelo para conferir.`,
     );
   }
 
@@ -80,7 +88,10 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
   for (let i = 1; i < rows.length; i++) {
     const raw = rows[i];
     if (raw.every((cell) => String(cell).trim() === "")) continue;
-    const get = (key: keyof ParsedRow) => String(raw[columnIndex[key]!] ?? "").trim();
+    const get = (key: keyof ParsedRow) => {
+      const idx = columnIndex[key];
+      return idx === undefined ? "" : String(raw[idx] ?? "").trim();
+    };
     const row: ParsedRow = {
       linha: i + 1,
       nome: get("nome"),
@@ -92,15 +103,11 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
       status: get("status"),
     };
 
-    // A row with at most one field filled is more likely a stray note or separator
-    // (e.g. "Cenário 1: ...") than an actual colaborador — skip it instead of raising
-    // a wall of "campo obrigatório ausente" errors for a row that was never data.
     const filledFields = CONTENT_FIELDS.filter((key) => row[key]).length;
     if (filledFields <= 1) {
       linhasIgnoradas += 1;
       continue;
     }
-
     parsed.push(row);
   }
 

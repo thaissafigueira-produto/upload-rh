@@ -1,22 +1,36 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Topbar } from "@/components/layout/Topbar";
-import { useStore } from "@/lib/store";
+import { Star4 } from "@/components/status/StatusBadge";
+import { Wordmark } from "@/components/common/Wordmark";
+import { authService } from "@/services/authService";
+import { useDatabase } from "@/services/database";
 
 export function AppShell() {
-  const { isAuthenticated } = useStore();
+  useDatabase();
+  const { pathname } = useLocation();
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    document.getElementById("main-scroll")?.scrollTo({ top: 0 });
+  }, [pathname]);
+
+  if (!authService.isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <Topbar />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
+    <div className="flex h-dvh bg-background">
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-12 shrink-0 items-center justify-between px-4 md:justify-end md:px-8">
+          <Wordmark className="text-xl md:hidden" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-lilac-soft px-3 py-1 text-xs font-bold text-primary">
+            <Star4 className="size-2.5 text-lilac" />
+            Ambiente de demonstração
+          </span>
+        </header>
+        <main id="main-scroll" className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[84rem] px-4 pt-4 pb-16 md:px-8">
             <Outlet />
           </div>
         </main>

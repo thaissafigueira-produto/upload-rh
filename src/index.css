@@ -1,22 +1,29 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'League Spartan', ui-sans-serif, system-ui, sans-serif;
     --color-brand: var(--brand);
     --color-brand-foreground: var(--brand-foreground);
     --color-brand-soft: var(--brand-soft);
+    --color-primary-hover: var(--primary-hover);
+    --color-primary-active: var(--primary-active);
     --color-success: var(--success);
     --color-success-foreground: var(--success-foreground);
     --color-success-soft: var(--success-soft);
     --color-warning: var(--warning);
     --color-warning-foreground: var(--warning-foreground);
     --color-warning-soft: var(--warning-soft);
+    --color-rose: var(--rose);
+    --color-rose-soft: var(--rose-soft);
+    --color-lilac: var(--lilac);
+    --color-lilac-soft: var(--lilac-soft);
+    --color-tip: var(--tip);
+    --color-tip-border: var(--tip-border);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -25,11 +32,6 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -58,102 +60,63 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --background: #ffffff;
+    --foreground: #1e1b2e;
+    --card: #ffffff;
+    --card-foreground: #1e1b2e;
+    --popover: #ffffff;
+    --popover-foreground: #1e1b2e;
+    --primary: #4e4394;
+    --primary-hover: #46408e;
+    --primary-active: #3d3c87;
+    --primary-foreground: #ffffff;
+    --secondary: #f3f0f8;
+    --secondary-foreground: #3d3c87;
+    --muted: #f7f5fa;
+    --muted-foreground: #6c6880;
+    --accent: #f3f0f8;
+    --accent-foreground: #3d3c87;
+    --destructive: #c0392f;
+    --border: #ebe7f1;
+    --input: #d9d3e5;
+    --ring: #a99ec6;
+    --radius: 0.75rem;
 
-    --brand: oklch(0.455 0.11 165.5);
-    --brand-foreground: oklch(0.985 0 0);
-    --brand-soft: oklch(0.94 0.045 165.5);
-    --success: oklch(0.6 0.13 155);
-    --success-foreground: oklch(0.985 0 0);
-    --success-soft: oklch(0.95 0.045 155);
-    --warning: oklch(0.685 0.16 55);
-    --warning-foreground: oklch(0.985 0 0);
-    --warning-soft: oklch(0.95 0.06 75);
-}
+    --sidebar: #faf6ef;
+    --sidebar-foreground: #2b2742;
+    --sidebar-primary: #4e4394;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ece6f5;
+    --sidebar-accent-foreground: #3d3c87;
+    --sidebar-border: #eee6d8;
+    --sidebar-ring: #a99ec6;
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-
-    --brand: oklch(0.72 0.135 165.5);
-    --brand-foreground: oklch(0.145 0.02 165.5);
-    --brand-soft: oklch(0.3 0.06 165.5);
-    --success: oklch(0.72 0.14 155);
-    --success-foreground: oklch(0.145 0 0);
-    --success-soft: oklch(0.3 0.06 155);
-    --warning: oklch(0.78 0.15 70);
-    --warning-foreground: oklch(0.145 0 0);
-    --warning-soft: oklch(0.32 0.07 70);
+    --brand: #4e4394;
+    --brand-foreground: #ffffff;
+    --brand-soft: #ede9f6;
+    --success: #2c8657;
+    --success-foreground: #ffffff;
+    --success-soft: #e3f4eb;
+    --warning: #a85a0b;
+    --warning-foreground: #ffffff;
+    --warning-soft: #fdf0d9;
+    --rose: #e89c9c;
+    --rose-soft: #fbeaea;
+    --lilac: #c4b6da;
+    --lilac-soft: #f0ebf7;
+    --tip: #f9f2e4;
+    --tip-border: #efe2c6;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+    font-size: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
 }

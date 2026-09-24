@@ -19,3 +19,13 @@ export function initials(name: string) {
   const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (first + last).toUpperCase();
 }
+
+/** "2026-10" → "outubro/2026" */
+export function formatCompetencia(competencia: string) {
+  const [ano, mes] = competencia.split("-").map(Number);
+  return `${format(new Date(ano, mes - 1, 1), "MMMM", { locale: ptBR })}/${ano}`;
+}
+
+export function daysSince(iso: string) {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}

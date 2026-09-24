@@ -1,39 +1,34 @@
 # Design
 
-<!-- impeccable:design-schema 1 -->
-
 ## Mode
 
-Operate. The visitor (an HR analyst) completes tasks — consulting, uploading, reviewing diffs, resolving pendências — so scanability, consistency and native table/form affordances outrank expression.
+Operate. Quem usa (uma pessoa de RH) executa tarefas — consultar, atualizar a base, revisar o que mudou, resolver pendências, conferir CNPJs — então leitura rápida, consistência e tabelas/formulários nativos vêm antes de expressão. A referência de estrutura e visual é o portal de RH da Wellhub, com a identidade da Guapeco; referências de qualidade: Stripe, Linear, Rippling, Deel.
 
-## World
+## Identidade Guapeco
 
-Canon B2B SaaS operate grammar, taken as the standing exit and named directly by the brief: Stripe, Linear, Rippling, Deel as the craft bar. No concept-seed roll — the brief pinned the aesthetic references, which beats the roll per the "brief wins" rule.
+- Primária: roxo `#4e4394` (hover `#46408e`, pressionado `#3d3c87`) — botões primários, item ativo da sidebar, links e destaques. Tokens `--primary`, `--primary-hover`, `--primary-active`, `--brand`.
+- Destaque: rosa `#e89c9c` (`--rose`, `--rose-soft`) — com moderação: badge "Novo" (estrela de 4 pontas) e detalhes.
+- Lilás `#c4b6da` (`--lilac`, `--lilac-soft`) — fundos suaves, cards de atenção, estados selecionados.
+- Marrom `#b4715e` — apoio pontual (não usado por padrão).
+- Neutros quentes: sidebar em creme `#faf6ef`; conteúdo branco. Cores semânticas (`--success`, `--warning`, `--destructive`) só para significado de status.
+- Tipografia: League Spartan (Google Fonts, pesos 400–700) em toda a interface.
+- Wordmark "Guapeco" em roxo no topo da sidebar. Ícones lucide outline; detalhes de pet (pata, coração) só em empty states, sucesso e dicas.
 
-Restrained color strategy: a near-black/white neutral scale (shadcn "Nova" preset, zinc-based) carries the entire interface — text, borders, primary buttons — with one deep-emerald brand accent (`--brand`) reserved for identity (wordmark tone), active navigation state, links, and "com adesão" affirmative badges. Semantic accents (`--success`, `--warning`, `--destructive`) are used only for status meaning (ativo/pendência/erro), never decoration.
+## Layout & Componentes
 
-Dark mode tokens exist (system default), but the shipped experience is optimized for light mode, matching the reference products' primary surface.
+- Sidebar creme de 16rem: logo, seletor empresa/usuário (menu: perfil, restaurar dados de demonstração, sair), itens com ícone outline e item ativo em fundo lilás suave; badge numérico no item "CNPJs" quando há conferência pendente. Selo discreto "Ambiente de demonstração" no topo do conteúdo.
+- Cabeçalho de página: título grande e em negrito, subtítulo cinza, botão "Glossário de termos" ao lado do título, breadcrumb em páginas internas.
+- Cards brancos com raio 16px e sombra muito leve; botões primários em pílula; links de ação em roxo, sublinhados.
+- Números grandes nos cards de resumo com uma linha de contexto; caixas de dica (lâmpada, fundo bege) explicam o que fazer; `Stepper` numerado para o fluxo de atualização.
+- Tabelas: cabeçalho em caixa alta pequena, divisórias finas, seta de ação à direita, link "Filtrar" com ícone; status sempre em badges com ícone.
+- Sem alertas do navegador: modais (`Dialog`/`AlertDialog`), painéis laterais (`Sheet`) e toasts (Sonner).
 
-## Typography
+## Interação
 
-Geist Variable (`@fontsource-variable/geist`) as the sole face, for both UI text and headings — a workhorse geometric sans appropriate to Operate mode. No secondary display face; hierarchy comes from size/weight/color, not font mixing.
+- Ações destrutivas ou irreversíveis (desligar, confirmar atualização, confirmar conferência, restaurar dados) sempre passam por modal com texto em português simples.
+- Atualizar base é uma máquina de estados numa única rota (enviar → validação → o que mudou → confirmar → sucesso); cancelar ou sair descarta a análise.
+- Todos os fluxos têm loading, sucesso, erro, empty state e confirmação.
 
-## Layout & Components
+## Movimento
 
-- Fixed 240px sidebar (icon + label nav, active item gets `bg-brand-soft`/`text-brand`) + 56px topbar (Guapeco wordmark / company / user menu), content column capped at `max-w-7xl` with generous padding.
-- shadcn/ui (Radix primitives) throughout: Card, Table, Sheet (employee & version detail side panels), Tabs (Novos/Removidos/Alterados/Erros), AlertDialog (destructive confirmations), Select, DropdownMenu, Sonner toasts.
-- Cards: `rounded-lg`, 1px hairline border, no shadow-heavy elevation — quiet containers, not decorative chrome.
-- Tables: dense, whitespace-nowrap cells, hover row highlight, horizontal scroll on overflow rather than truncation — status/benefit columns always render as pill badges, never raw enum strings.
-- Status badges: small pill with a 6px dot — `success-soft`/`success` for Ativo, neutral `muted` for Desligado, `brand-soft`/`brand` for Com adesão, `warning-soft`/`warning` for "Não encontrado na nova base" pendências.
-- Icons: lucide-react, 16–20px, `strokeWidth 1.75–2`, used sparingly (nav, empty states, upload states) — never decorative filler.
-- Empty states: centered icon-in-circle + one-line title + optional description, dashed border container.
-
-## Interaction
-
-- Destructive/consequential actions (marcar como desligado, confirmar atualização) always route through an AlertDialog with plain-language copy before executing.
-- The upload flow is a single-page state machine (idle → analisando → erros | comparação → sucesso), not a multi-route wizard, so context (the file, the summary) never gets lost in navigation.
-- Toasts (sonner, top-right) confirm the result of every mutating action (desligamento, CNPJ, restaurar dados).
-
-## Motion
-
-Deliberately minimal: default shadcn/Radix open/close transitions on Sheet/Dialog/Select only. No custom choreographed motion — appropriate for a dense operational tool where movement should never compete with data.
+Mínimo: transições padrão do Radix em Sheet/Dialog/Select. Sem coreografia própria.

@@ -1,30 +1,33 @@
-import type { Employee, EmployeeDiffChanged, FieldChange, ParsedRow, VersionDiff } from "@/types";
+import { onlyDigits } from "@/lib/cnpj";
+import type { Cnpj, Employee, EmployeeDiffChanged, EmployeeStatus, FieldChange, ParsedRow, VersionDiff } from "@/types";
 
-function normalizeStatus(status: string): Employee["status"] {
-  return status.trim().toLowerCase() === "desligado" ? "desligado" : "ativo";
-}
+export const STATUS_LABEL: Record<EmployeeStatus, string> = {
+  ativo: "Ativo",
+  nao_encontrado: "Não encontrado na última base",
+  desligado: "Desligado",
+};
 
 function makeId() {
   return `emp-${Math.random().toString(36).slice(2, 10)}`;
 }
-
-const FIELD_LABELS: { key: "nome" | "email" | "cnpj" | "departamento" | "cargo" | "status"; label: string }[] = [
-  { key: "nome", label: "Nome" },
-  { key: "email", label: "E-mail corporativo" },
-  { key: "cnpj", label: "CNPJ" },
-  { key: "departamento", label: "Departamento" },
-  { key: "cargo", label: "Cargo" },
-  { key: "status", label: "Status" },
-];
 
 export interface ComputedDiff {
   diff: VersionDiff;
   nextEmployees: Employee[];
 }
 
-export function computeDiff(currentEmployees: Employee[], rows: ParsedRow[], now: string): ComputedDiff {
+/** Compara a nova base com a base atual da empresa. Quem sumiu da planilha não é apagado:
+ * passa a "Não encontrado na última base" para o RH decidir. */
+export function computeDiff(
+  currentEmployees: Employee[],
+  rows: ParsedRow[],
+  cnpjs: Cnpj[],
+  empresaId: string,
+  now: string,
+): ComputedDiff {
   const employees = currentEmployees.map((e) => ({ ...e }));
   const byMatricula = new Map(employees.map((e) => [e.matricula.trim().toLowerCase(), e]));
+  const cnpjByDigits = new Map(cnpjs.map((c) => [onlyDigits(c.cnpj), c.cnpj]));
   const seenMatriculas = new Set<string>();
 
   const novos: Employee[] = [];
@@ -35,22 +38,25 @@ export function computeDiff(currentEmployees: Employee[], rows: ParsedRow[], now
     if (!key) continue;
     seenMatriculas.add(key);
     const existing = byMatricula.get(key);
-    const status = normalizeStatus(row.status);
-    const departamento = row.departamento as Employee["departamento"];
+    const cnpj = cnpjByDigits.get(onlyDigits(row.cnpj)) ?? row.cnpj;
+    const incomingRaw = row.status.trim().toLowerCase();
 
     if (!existing) {
+      const status: EmployeeStatus = incomingRaw === "desligado" ? "desligado" : "ativo";
       const created: Employee = {
         id: makeId(),
+        empresaId,
         nome: row.nome,
         email: row.email,
         matricula: row.matricula,
-        cnpj: row.cnpj,
-        departamento,
+        cnpj,
+        departamento: row.departamento,
         cargo: row.cargo,
         status,
         beneficio: "sem_adesao",
         dataEntrada: now,
         dataAtualizacao: now,
+        dataDesligamento: status === "desligado" ? now : undefined,
       };
       employees.push(created);
       byMatricula.set(key, created);
@@ -58,40 +64,44 @@ export function computeDiff(currentEmployees: Employee[], rows: ParsedRow[], now
       continue;
     }
 
-    const wasPending = existing.naoEncontradoNaUltimaBase;
-    existing.naoEncontradoNaUltimaBase = false;
+    const incomingStatus: EmployeeStatus =
+      incomingRaw === "desligado" ? "desligado" : incomingRaw === "ativo" ? "ativo" : existing.status === "desligado" ? "desligado" : "ativo";
 
-    const incoming: Record<string, string> = {
-      nome: row.nome, email: row.email, cnpj: row.cnpj, departamento, cargo: row.cargo, status,
-    };
     const mudancas: FieldChange[] = [];
-    for (const field of FIELD_LABELS) {
-      const anterior = String(existing[field.key]);
-      const novo = incoming[field.key];
-      if (anterior !== novo) {
-        mudancas.push({ campo: field.label, anterior, novo });
-        (existing as unknown as Record<string, string>)[field.key] = novo;
-      }
-    }
-    if (mudancas.length > 0 || wasPending) {
-      existing.dataAtualizacao = now;
-    }
+    const compare = (campo: string, anterior: string, novo: string, destaque = false) => {
+      if (anterior !== novo) mudancas.push({ campo, anterior, novo, destaque });
+    };
+
+    compare("Nome", existing.nome, row.nome);
+    compare("E-mail corporativo", existing.email, row.email);
+    compare("CNPJ", existing.cnpj, cnpj, true);
+    if (row.departamento) compare("Departamento", existing.departamento, row.departamento);
+    if (row.cargo) compare("Cargo", existing.cargo, row.cargo);
+    compare("Status", STATUS_LABEL[existing.status], STATUS_LABEL[incomingStatus]);
+
     if (mudancas.length > 0) {
+      existing.nome = row.nome;
+      existing.email = row.email;
+      existing.cnpj = cnpj;
+      if (row.departamento) existing.departamento = row.departamento;
+      if (row.cargo) existing.cargo = row.cargo;
+      if (existing.status !== incomingStatus) {
+        existing.status = incomingStatus;
+        existing.dataDesligamento = incomingStatus === "desligado" ? now : undefined;
+      }
+      existing.dataAtualizacao = now;
       alterados.push({ id: existing.id, nome: existing.nome, matricula: existing.matricula, mudancas });
     }
   }
 
-  const removidos: Employee[] = [];
+  const naoEncontrados: Employee[] = [];
   for (const employee of employees) {
     if (employee.status !== "ativo") continue;
-    const key = employee.matricula.trim().toLowerCase();
-    if (!seenMatriculas.has(key)) {
-      if (!employee.naoEncontradoNaUltimaBase) {
-        removidos.push({ ...employee });
-      }
-      employee.naoEncontradoNaUltimaBase = true;
-    }
+    if (seenMatriculas.has(employee.matricula.trim().toLowerCase())) continue;
+    naoEncontrados.push({ ...employee });
+    employee.status = "nao_encontrado";
+    employee.dataAtualizacao = now;
   }
 
-  return { diff: { novos, removidos, alterados }, nextEmployees: employees };
+  return { diff: { novos, naoEncontrados, alterados }, nextEmployees: employees };
 }

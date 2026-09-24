@@ -23,8 +23,9 @@ Entidade legal à qual o colaborador está vinculado. Uma empresa pode ter múlt
 CNPJs (matriz e filiais); um colaborador pertence a exatamente um.
 
 **Status**:
-"Ativo" ou "Desligado". Só muda para Desligado por ação explícita do RH — nunca
-automaticamente por ausência na base enviada.
+"Ativo", "Não encontrado na última base" ou "Desligado". Só muda para Desligado por
+ação explícita do RH (com data de desligamento) — nunca automaticamente por ausência na
+base enviada; nesse caso vira "Não encontrado na última base".
 _Avoid_: confundir com Status do benefício.
 
 **Status do benefício**:
@@ -46,31 +47,44 @@ _Avoid_: upload (upload é a ação de enviar o arquivo; versão é o resultado 
 O fluxo completo de enviar uma nova planilha, validá-la, comparar com a versão
 vigente, revisar e confirmar — criando uma nova Versão da base.
 
-**Comparação (diff)**:
+**Comparação**:
 O resultado de comparar a planilha enviada com a versão vigente da base, dividido
-em três grupos: Novos, Removidos e Alterados.
+em três grupos: Novos, Não encontrados e Alterados.
 
 **Novo**:
-Colaborador presente na planilha enviada que não existia (ou estava desligado) na
-versão vigente da base.
+Colaborador presente na planilha enviada que não existia na versão vigente da base.
 
-**Removido**:
+**Não encontrado (na base)**:
 Colaborador que estava ativo na versão vigente mas não aparece na planilha enviada.
-Não é desligado automaticamente — vira uma Pendência.
+Não é desligado automaticamente — passa ao status "Não encontrado na última base" e
+conta como Pendência até o RH decidir.
+_Avoid_: "removido" (ninguém é apagado).
 
 **Alterado**:
 Colaborador presente em ambas as versões, mas com um ou mais campos diferentes.
-Cada alteração registra o campo, o valor anterior e o novo valor.
+Cada alteração registra o campo, o valor anterior e o novo valor. Mudanças de CNPJ são
+destacadas porque afetam o faturamento.
 
 **Pendência**:
-Colaborador ativo marcado como "não encontrado na nova base": desapareceu de uma
-planilha enviada, mas o RH ainda não confirmou se ele foi desligado. Fica com o
-status Ativo até essa confirmação.
+Colaborador com status "Não encontrado na última base": sumiu de uma planilha enviada
+e o RH ainda não confirmou se ele foi desligado.
 _Avoid_: tratar como sinônimo de Desligado — são estados diferentes.
 
 **Desligamento**:
-Ação explícita do RH ("Marcar como desligado") que muda o Status de um colaborador
-para Desligado. É sempre uma decisão humana, nunca inferida automaticamente.
+Ação explícita do RH ("Marcar como desligado", informando a data) que muda o Status de
+um colaborador para Desligado. É sempre uma decisão humana, nunca inferida automaticamente.
+
+## CNPJs e faturamento
+
+**Conferência de CNPJs**:
+Confirmação mensal (por competência mês/ano) de a qual CNPJ cada colaborador com adesão
+pertence, usada pelo financeiro da Guapeco para emitir notas fiscais e boletos.
+Status: Pendente, Em conferência, Confirmada (imutável). Não pode ser confirmada com
+colaboradores com adesão sem CNPJ.
+
+**Competência**:
+O mês/ano ao qual uma conferência se refere. Alterações de CNPJ feitas depois da
+confirmação valem para a competência seguinte.
 
 ## Governança
 

@@ -1,107 +1,132 @@
-import { ArrowRight, Clock, UploadCloud, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, Clock, PawPrint, UploadCloud, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/common/MetricCard";
+import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { formatDateTime, formatNumber } from "@/lib/format";
-import { useStore } from "@/lib/store";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatCompetencia, formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { authService } from "@/services/authService";
+import { dashboardService, type AtencaoItem } from "@/services/dashboardService";
+import { useDatabase } from "@/services/database";
 
-function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function AtencaoCard({ item }: { item: AtencaoItem }) {
+  let icon = <AlertTriangle className="size-5" />;
+  let text = "";
+  let cta = { label: "", to: "" };
+
+  if (item.tipo === "conferencia") {
+    icon = <Building2 className="size-5" />;
+    text = `Conferência de CNPJs de ${formatCompetencia(item.conferencia.competencia)} pendente — prazo: ${formatDate(item.conferencia.prazo)}`;
+    cta = { label: "Conferir CNPJs", to: `/cnpjs/conferencia/${item.conferencia.id}` };
+  } else if (item.tipo === "nao_encontrados") {
+    icon = <Users className="size-5" />;
+    text = `${item.quantidade} ${item.quantidade === 1 ? "colaborador não foi encontrado" : "colaboradores não foram encontrados"} na última base`;
+    cta = { label: "Revisar", to: "/colaboradores?status=nao_encontrado" };
+  } else {
+    icon = <Clock className="size-5" />;
+    text = "Sua base foi atualizada há mais de 30 dias";
+    cta = { label: "Atualizar base", to: "/atualizar-base" };
+  }
+
   return (
-    <Card>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-3 rounded-2xl bg-lilac-soft p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-primary">{icon}</span>
+        <p className="text-base font-semibold text-foreground">{text}</p>
+      </div>
+      <Button asChild size="sm" className="shrink-0 self-start sm:self-auto">
+        <Link to={cta.to}>{cta.label}</Link>
+      </Button>
+    </div>
   );
 }
 
 export default function Overview() {
-  const { user, employees, versions } = useStore();
+  useDatabase();
+  const user = authService.currentUser();
   const firstName = user?.nome.split(" ")[0] ?? "";
-
-  const colaboradoresNaBase = employees.filter((e) => e.status === "ativo").length;
-  const pendencias = employees.filter((e) => e.status === "ativo" && e.naoEncontradoNaUltimaBase).length;
-  const ultimaVersao = versions[versions.length - 1];
+  const { naBase, novosUltimaAtualizacao, pendencias, latest, atencao } = dashboardService.overview();
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Olá, {firstName} 👋</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Gerencie a população de colaboradores da sua empresa.
-        </p>
-      </div>
+      <PageHeader title={`Olá, ${firstName} 👋`} subtitle="Gerencie a população de colaboradores da sua empresa." />
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-bold text-foreground">O que precisa da sua atenção</h2>
+        {atencao.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {atencao.map((item) => <AtencaoCard key={item.tipo} item={item} />)}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-2xl bg-success-soft p-4 text-base font-semibold text-success">
+            <PawPrint className="size-5" />
+            Tudo em dia por aqui. 🐾
+          </div>
+        )}
+      </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label="Colaboradores na base" value={formatNumber(colaboradoresNaBase)} />
+        <MetricCard
+          label="Colaboradores na base"
+          value={formatNumber(naBase)}
+          context={novosUltimaAtualizacao > 0 ? `+${novosUltimaAtualizacao} na última atualização` : "Nenhuma mudança na última atualização"}
+        />
         <MetricCard
           label="Novos na última atualização"
-          value={ultimaVersao ? formatNumber(ultimaVersao.novos) : "0"}
+          value={formatNumber(novosUltimaAtualizacao)}
+          context={latest ? `Atualização de ${formatDate(latest.version.data)}` : undefined}
         />
-        <MetricCard
-          label="Pendências"
-          value={formatNumber(pendencias)}
-          hint={pendencias > 0 ? "Colaboradores não encontrados na última base" : undefined}
-        />
+        <Link to="/colaboradores?status=nao_encontrado" className="block rounded-2xl transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring">
+          <MetricCard
+            label="Pendências"
+            value={formatNumber(pendencias)}
+            context={pendencias > 0 ? "Colaboradores não encontrados na última base" : "Nenhuma pendência"}
+          />
+        </Link>
       </div>
 
-      {ultimaVersao && (
+      {latest && (
         <Card className="mt-6">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div className="flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground">Última atualização</p>
-            </div>
-            <Badge variant="secondary" className="font-normal">
-              {formatDateTime(ultimaVersao.data)}
-            </Badge>
-          </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {formatNumber(ultimaVersao.total)} colaboradores processados
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-muted-foreground" />
+                <h2 className="text-lg font-bold text-foreground">Última atualização</h2>
+              </div>
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+                {formatDateTime(latest.version.data)}
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              por {latest.version.usuario} · {latest.version.arquivo}
             </p>
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-              <span className="text-success">+{ultimaVersao.novos} adicionados</span>
-              <span className="text-muted-foreground">−{ultimaVersao.removidos} removidos</span>
-              <span className="text-foreground">{ultimaVersao.alterados} atualizados</span>
+            <p className="mt-1 text-base font-semibold text-foreground">
+              {formatNumber(latest.upload.total)} colaboradores processados
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm font-medium">
+              <span className="text-success">{latest.upload.novos} novos</span>
+              <span className="text-warning">{latest.upload.naoEncontrados} não encontrados</span>
+              <span className="text-foreground">{latest.upload.alterados} alterados</span>
             </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Button variant="outline" asChild>
-                <Link to={`/historico?v=${ultimaVersao.id}`}>
-                  Ver detalhes
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link to="/atualizar-base">
-                  <UploadCloud className="size-4" />
-                  Atualizar base
-                </Link>
-              </Button>
-            </div>
+            <Link
+              to={`/historico/${latest.upload.id}`}
+              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary underline underline-offset-4 hover:text-primary-hover"
+            >
+              Ver detalhes
+              <ArrowRight className="size-4" />
+            </Link>
           </CardContent>
         </Card>
       )}
 
-      <Card className="mt-6 border-dashed">
-        <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft">
-              <Users className="size-5 text-brand" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Consulte a base de colaboradores</p>
-              <p className="text-sm text-muted-foreground">Busque, filtre e acompanhe a população elegível.</p>
-            </div>
-          </div>
-          <Button variant="outline" asChild>
-            <Link to="/colaboradores">Ver colaboradores</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="mt-8">
+        <Button asChild size="lg">
+          <Link to="/atualizar-base">
+            <UploadCloud />
+            Atualizar base
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
