@@ -10,6 +10,7 @@ import { ChangedEmployeesTable, NaoEncontradosTable, NewEmployeesTable } from "@
 import { ErrorsTable } from "@/components/upload/ErrorsTable";
 import { shortRazaoSocial } from "@/lib/cnpj";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { MODO_LABEL } from "@/lib/modos";
 import { auditService } from "@/services/auditService";
 import { cnpjService } from "@/services/cnpjService";
 import { useDatabase } from "@/services/database";
@@ -39,7 +40,7 @@ export default function HistoryDetail() {
       <PageHeader
         breadcrumb={[{ label: "Histórico", to: "/historico" }, { label: `Atualização de ${formatDate(upload.data)}` }]}
         title={`Atualização de ${formatDate(upload.data)}`}
-        subtitle={`${upload.arquivo} · enviado por ${upload.usuario} em ${formatDateTime(upload.data)}`}
+        subtitle={`${upload.arquivo} · ${MODO_LABEL[upload.modo]} · enviado por ${upload.usuario} em ${formatDateTime(upload.data)}`}
         action={<UploadStatusBadge status={upload.status} />}
       />
 

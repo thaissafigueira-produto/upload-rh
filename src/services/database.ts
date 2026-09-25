@@ -69,6 +69,15 @@ export function setSessionUserId(userId: string | null) {
   setState({ ...state, sessionUserId: userId });
 }
 
+let focusEmpresaId = "";
+
+/** Empresa que a equipe Guapeco está consultando. Definida de forma silenciosa (sem re-render)
+ * porque é escolhida pela rota, antes de as telas lerem os dados. */
+export const getFocusEmpresaId = () => focusEmpresaId;
+export function setFocusEmpresaId(id: string) {
+  focusEmpresaId = id;
+}
+
 export function resetDatabase() {
   const db = generateDemoDatabase();
   writeStorage(DB_KEY, JSON.stringify(db));

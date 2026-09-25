@@ -24,13 +24,16 @@ export function Sidebar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
 
-  const items = [
-    { to: "/", label: "Visão geral", icon: LayoutGrid, end: true },
-    { to: "/colaboradores", label: "Colaboradores", icon: Users, end: false },
-    { to: "/atualizar-base", label: "Atualizar base", icon: UploadCloud, end: false },
-    { to: "/cnpjs", label: "CNPJs", icon: Building2, end: false, badge: pendingCnpjs },
-    { to: "/historico", label: "Histórico", icon: History, end: false },
-  ];
+  const isGuapeco = user?.perfil === "guapeco";
+  const items: { to: string; label: string; icon: typeof Users; end: boolean; badge?: number }[] = isGuapeco
+    ? [{ to: "/guapeco", label: "Empresas", icon: Building2, end: false }]
+    : [
+        { to: "/", label: "Visão geral", icon: LayoutGrid, end: true },
+        { to: "/colaboradores", label: "Colaboradores", icon: Users, end: false },
+        { to: "/atualizar-base", label: "Atualizar base", icon: UploadCloud, end: false },
+        { to: "/cnpjs", label: "CNPJs", icon: Building2, end: false, badge: pendingCnpjs },
+        { to: "/historico", label: "Histórico", icon: History, end: false },
+      ];
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
@@ -45,7 +48,7 @@ export function Sidebar() {
               <AvatarFallback className="bg-lilac-soft text-xs font-bold text-primary">{user ? initials(user.nome) : ""}</AvatarFallback>
             </Avatar>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold text-foreground">{empresa?.nome}</span>
+              <span className="block truncate text-sm font-bold text-foreground">{isGuapeco ? "Equipe Guapeco" : empresa?.nome}</span>
               <span className="block truncate text-xs text-muted-foreground">{user?.nome}</span>
             </span>
             <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
@@ -112,7 +115,7 @@ export function Sidebar() {
             <div><dt className="text-muted-foreground">Nome</dt><dd className="mt-0.5 font-semibold">{user?.nome}</dd></div>
             <div><dt className="text-muted-foreground">Cargo</dt><dd className="mt-0.5 font-semibold">{user?.cargo}</dd></div>
             <div className="col-span-2"><dt className="text-muted-foreground">E-mail</dt><dd className="mt-0.5 font-semibold">{user?.email}</dd></div>
-            <div className="col-span-2"><dt className="text-muted-foreground">Empresa</dt><dd className="mt-0.5 font-semibold">{empresa?.nome}</dd></div>
+            <div className="col-span-2"><dt className="text-muted-foreground">Empresa</dt><dd className="mt-0.5 font-semibold">{isGuapeco ? "Guapeco" : empresa?.nome}</dd></div>
           </dl>
         </DialogContent>
       </Dialog>
@@ -127,7 +130,7 @@ export function Sidebar() {
         onConfirm={() => {
           authService.restoreDemoData();
           toast.success("Dados de demonstração restaurados.");
-          navigate("/");
+          navigate(isGuapeco ? "/guapeco" : "/");
         }}
       />
     </aside>

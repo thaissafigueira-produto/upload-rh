@@ -1,17 +1,23 @@
-import { DEMO_USUARIO } from "@/data/seed";
-import type { AuditEvent, Empresa, Usuario } from "@/types";
-import { getState, resetDatabase, setSessionUserId } from "./database";
+import { DEMO_USUARIO, GUAPECO_USUARIO } from "@/data/seed";
+import type { AuditEvent, Empresa, PerfilUsuario, Usuario } from "@/types";
+import { getFocusEmpresaId, getState, resetDatabase, setSessionUserId } from "./database";
 
 export interface ServiceContext {
+  /** Empresa dos dados. Para a equipe Guapeco, é a empresa aberta no momento. */
   empresaId: string;
   usuario: string;
+  perfil: PerfilUsuario | null;
 }
 
 /** Contexto do usuário logado. Todos os services filtram por `empresaId`. */
 export function getContext(): ServiceContext {
   const { db, sessionUserId } = getState();
   const user = db.usuarios.find((u) => u.id === sessionUserId);
-  return { empresaId: user?.empresaId ?? "", usuario: user?.nome ?? "" };
+  if (!user) return { empresaId: "", usuario: "", perfil: null };
+  if (user.perfil === "guapeco") {
+    return { empresaId: getFocusEmpresaId(), usuario: `${user.nome} (Guapeco)`, perfil: "guapeco" };
+  }
+  return { empresaId: user.empresaId, usuario: user.nome, perfil: "rh" };
 }
 
 let auditSeq = 0;
@@ -31,10 +37,11 @@ export function makeAuditEvent(
 }
 
 export const authService = {
-  /** Login simulado: entra direto com a usuária de demonstração. */
-  login(): Usuario {
-    setSessionUserId(DEMO_USUARIO.id);
-    return DEMO_USUARIO;
+  /** Login simulado: entra direto com a usuária de demonstração do perfil escolhido. */
+  login(perfil: PerfilUsuario = "rh"): Usuario {
+    const user = perfil === "guapeco" ? GUAPECO_USUARIO : DEMO_USUARIO;
+    setSessionUserId(user.id);
+    return user;
   },
   logout() {
     setSessionUserId(null);
@@ -48,7 +55,8 @@ export const authService = {
   },
   currentEmpresa(): Empresa | null {
     const user = authService.currentUser();
-    return getState().db.empresas.find((e) => e.id === user?.empresaId) ?? null;
+    if (user?.perfil !== "rh") return null;
+    return getState().db.empresas.find((e) => e.id === user.empresaId) ?? null;
   },
   /** Volta tudo ao estado inicial de demonstração (mantém o login). */
   restoreDemoData() {

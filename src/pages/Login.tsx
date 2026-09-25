@@ -11,7 +11,8 @@ export default function Login() {
   useDatabase();
   const navigate = useNavigate();
 
-  if (authService.isAuthenticated()) return <Navigate to="/" replace />;
+  const user = authService.currentUser();
+  if (user) return <Navigate to={user.perfil === "guapeco" ? "/guapeco" : "/"} replace />;
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-sidebar px-4">
@@ -45,7 +46,19 @@ export default function Login() {
           </div>
 
           <Button type="submit" size="lg" className="mt-6 w-full">
-            Entrar
+            Entrar como RH da Venturus
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="mt-3 w-full"
+            onClick={() => {
+              authService.login("guapeco");
+              navigate("/guapeco");
+            }}
+          >
+            Entrar como equipe Guapeco
           </Button>
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">

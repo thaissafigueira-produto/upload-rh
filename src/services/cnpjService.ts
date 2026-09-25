@@ -132,6 +132,7 @@ export const cnpjService = {
 
   confirmar(id: string): { ok: true } | { ok: false; motivo: string } {
     const view = cnpjService.getView(id);
+    if (getContext().perfil !== "rh") return { ok: false, motivo: "Apenas o RH da empresa pode confirmar a conferência." };
     if (!view || view.somenteLeitura) return { ok: false, motivo: "Esta conferência já foi confirmada." };
     if (view.totais.semCnpj > 0) {
       return {

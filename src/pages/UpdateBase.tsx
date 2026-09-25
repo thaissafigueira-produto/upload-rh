@@ -23,10 +23,23 @@ import { cnpjService } from "@/services/cnpjService";
 import { useDatabase } from "@/services/database";
 import { employeesService } from "@/services/employeesService";
 import { uploadsService, type AnalysisResult } from "@/services/uploadsService";
-import type { Upload } from "@/types";
+import { MODO_LABEL } from "@/lib/modos";
+import type { ModoEnvio, Upload } from "@/types";
 
 const STEPS = ["Enviar arquivo", "Validação", "O que mudou", "Confirmar"];
-const FIELDS = ["Nome *", "E-mail corporativo *", "Matrícula *", "CNPJ *", "Departamento", "Cargo", "Status (Ativo/Desligado)"];
+
+const CAMPOS_NOVOS = ["Nome *", "E-mail corporativo *", "Matrícula *", "CNPJ *", "Departamento", "Cargo", "Telefone"];
+const FIELDS: Record<ModoEnvio, string[]> = {
+  completa: [...CAMPOS_NOVOS, "Status (Ativo/Desligado)", "Data de desligamento"],
+  novos: CAMPOS_NOVOS,
+  desligamentos: ["Matrícula *", "Data de desligamento *", "Nome (opcional)"],
+};
+
+const MODO_INFO: Record<ModoEnvio, string> = {
+  completa: "Envie todos os colaboradores da empresa. Dados alterados são atualizados e quem não aparecer fica como “Não encontrado na última base” para você revisar.",
+  novos: "Envie apenas quem entrou na empresa. Quem já está na base não é alterado nem marcado como não encontrado.",
+  desligamentos: "Envie apenas quem saiu da empresa, com a matrícula e a data de desligamento. Mais ninguém é alterado.",
+};
 
 type Phase = "enviar" | "analisando" | "validacao" | "mudancas" | "confirmar" | "sucesso";
 
@@ -35,6 +48,7 @@ const STEP_INDEX: Record<Phase, number> = { enviar: 0, analisando: 1, validacao:
 export default function UpdateBase() {
   useDatabase();
   const [phase, setPhase] = useState<Phase>("enviar");
+  const [modo, setModo] = useState<ModoEnvio>("completa");
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -53,7 +67,7 @@ export default function UpdateBase() {
     setPhase("analisando");
     try {
       const [analysisResult] = await Promise.all([
-        uploadsService.analyze(chosen),
+        uploadsService.analyze(chosen, modo),
         new Promise((r) => setTimeout(r, 800)),
       ]);
       setAnalysis(analysisResult);
@@ -76,7 +90,7 @@ export default function UpdateBase() {
   }
 
   function loadSample(withErrors: boolean) {
-    const sample = buildSampleFile(employeesService.list(), cnpjService.list(), withErrors);
+    const sample = buildSampleFile(employeesService.list(), cnpjService.list(), modo, withErrors);
     setFile(sample);
     void analyze(sample);
   }
@@ -112,9 +126,15 @@ export default function UpdateBase() {
           </div>
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-foreground">Base atualizada com sucesso.</h1>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-base font-semibold">
-            <span className="text-success">{result.novos} novos</span>
-            <span className="text-warning">{result.naoEncontrados} não encontrados</span>
-            <span className="text-foreground">{result.alterados} alterados</span>
+            {result.modo === "desligamentos" ? (
+              <span className="text-foreground">{result.alterados} {result.alterados === 1 ? "desligamento registrado" : "desligamentos registrados"}</span>
+            ) : (
+              <>
+                <span className="text-success">{result.novos} novos</span>
+                {result.modo === "completa" && <span className="text-warning">{result.naoEncontrados} não encontrados</span>}
+                {result.modo === "completa" && <span className="text-foreground">{result.alterados} alterados</span>}
+              </>
+            )}
           </div>
           {result.naoEncontrados > 0 && (
             <TipBox className="mt-6 text-left">
@@ -144,22 +164,44 @@ export default function UpdateBase() {
 
       {phase === "enviar" && (
         <div className="flex flex-col gap-6">
+          <div>
+            <h2 className="mb-3 text-lg font-bold text-foreground">O que você vai enviar?</h2>
+            <div role="radiogroup" aria-label="Tipo de envio" className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {(Object.keys(MODO_LABEL) as ModoEnvio[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={modo === m}
+                  onClick={() => { setModo(m); setFile(null); setParseError(null); }}
+                  className={cn(
+                    "rounded-2xl border p-4 text-left transition-colors",
+                    modo === m ? "border-primary bg-lilac-soft" : "border-border bg-card hover:bg-muted",
+                  )}
+                >
+                  <span className="block text-base font-bold text-foreground">{MODO_LABEL[m]}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{MODO_INFO[m]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <TipBox
             action={
-              <Button variant="outline" size="sm" onClick={() => downloadFile(buildTemplateFile(cnpjService.listAtivos()[0]?.cnpj))}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(buildTemplateFile(modo, cnpjService.listAtivos()[0]?.cnpj))}>
                 <Download />
                 Baixar modelo
               </Button>
             }
           >
-            <strong>Antes de começar:</strong> use o nosso modelo para garantir que sua base seja processada corretamente.
+            <strong>Antes de começar:</strong> use o modelo deste tipo de envio para garantir que sua planilha seja processada corretamente.
           </TipBox>
 
           <Card>
             <CardContent>
               <h2 className="text-lg font-bold text-foreground">Campos do modelo</h2>
               <div className="mt-3 flex flex-wrap gap-2">
-                {FIELDS.map((f) => (
+                {FIELDS[modo].map((f) => (
                   <span key={f} className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-secondary-foreground">{f}</span>
                 ))}
               </div>
@@ -191,7 +233,7 @@ export default function UpdateBase() {
               <Sparkles />
               Usar exemplo com erros
             </Button>
-            <Button variant="link" size="sm" onClick={() => downloadFile(buildSampleFile(employeesService.list(), cnpjService.list(), true))}>
+            <Button variant="link" size="sm" onClick={() => downloadFile(buildSampleFile(employeesService.list(), cnpjService.list(), modo, true))}>
               Baixar arquivo de exemplo
             </Button>
           </div>
@@ -227,6 +269,9 @@ export default function UpdateBase() {
             <SummaryStat label="E-mails inválidos" value={upload.validation.emailsInvalidos} tone={upload.validation.emailsInvalidos ? "destructive" : undefined} />
             <SummaryStat label="Campos obrigatórios ausentes" value={upload.validation.camposObrigatoriosAusentes} tone={upload.validation.camposObrigatoriosAusentes ? "destructive" : undefined} />
             <SummaryStat label="CNPJs não cadastrados" value={upload.validation.cnpjsNaoCadastrados} tone={upload.validation.cnpjsNaoCadastrados ? "destructive" : undefined} />
+            {upload.modo !== "completa" && (
+              <SummaryStat label="Problemas com a base atual" value={upload.validation.problemasDeBase} tone={upload.validation.problemasDeBase ? "destructive" : undefined} />
+            )}
           </div>
 
           {(analysis?.linhasIgnoradas ?? 0) > 0 && (
@@ -303,6 +348,20 @@ export default function UpdateBase() {
 }
 
 function ChangeSummary({ upload }: { upload: Upload }) {
+  if (upload.modo === "novos") {
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <SummaryStat label="Novos colaboradores" value={upload.novos} prefix="+" tone="success" />
+      </div>
+    );
+  }
+  if (upload.modo === "desligamentos") {
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <SummaryStat label="Desligamentos" value={upload.alterados} />
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <SummaryStat label="Novos colaboradores" value={upload.novos} prefix="+" tone="success" />
@@ -315,12 +374,17 @@ function ChangeSummary({ upload }: { upload: Upload }) {
 function ChangeTabs({ upload }: { upload: Upload }) {
   const cnpjs = cnpjService.list();
   const { diff } = upload;
+  const parcial = upload.modo !== "completa";
   return (
-    <Tabs defaultValue="novos" className="mt-6">
+    <Tabs defaultValue={upload.modo === "desligamentos" ? "alterados" : "novos"} className="mt-6">
       <TabsList>
-        <TabsTrigger value="novos">Novos ({diff.novos.length})</TabsTrigger>
-        <TabsTrigger value="nao_encontrados">Não encontrados ({diff.naoEncontrados.length})</TabsTrigger>
-        <TabsTrigger value="alterados">Alterados ({diff.alterados.length})</TabsTrigger>
+        {upload.modo !== "desligamentos" && <TabsTrigger value="novos">Novos ({diff.novos.length})</TabsTrigger>}
+        {!parcial && <TabsTrigger value="nao_encontrados">Não encontrados ({diff.naoEncontrados.length})</TabsTrigger>}
+        {upload.modo !== "novos" && (
+          <TabsTrigger value="alterados">
+            {upload.modo === "desligamentos" ? "Desligamentos" : "Alterados"} ({diff.alterados.length})
+          </TabsTrigger>
+        )}
       </TabsList>
       <div className="mt-4 rounded-2xl border border-border p-4">
         <TabsContent value="novos"><NewEmployeesTable employees={diff.novos} cnpjs={cnpjs} /></TabsContent>

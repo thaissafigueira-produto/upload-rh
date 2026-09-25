@@ -2,7 +2,7 @@ import { toCsv } from "@/lib/csv";
 import { computeDiff, type ComputedDiff } from "@/lib/diff";
 import { parseEmployeeFile } from "@/lib/parse-file";
 import { validateRows } from "@/lib/validate";
-import type { AuditEvent, BaseVersion, Upload } from "@/types";
+import type { AuditEvent, BaseVersion, ModoEnvio, Upload } from "@/types";
 import { auditService } from "./auditService";
 import { getContext, makeAuditEvent } from "./authService";
 import { getDb, mutate } from "./database";
@@ -32,24 +32,26 @@ export const uploadsService = {
   },
 
   /** Lê o arquivo no navegador, valida e compara com a base atual. */
-  async analyze(file: File): Promise<AnalysisResult> {
+  async analyze(file: File, modo: ModoEnvio = "completa"): Promise<AnalysisResult> {
     const ctx = getContext();
-    const { rows, linhasIgnoradas } = await parseEmployeeFile(file);
+    if (ctx.perfil !== "rh") throw new Error("Apenas o RH da empresa pode enviar a base.");
+    const { rows, linhasIgnoradas } = await parseEmployeeFile(file, modo);
     const db = getDb();
     const cnpjs = db.cnpjs.filter((c) => c.empresaId === ctx.empresaId && c.ativo);
-    const validation = validateRows(rows, cnpjs.map((c) => c.cnpj));
+    const current = db.employees.filter((e) => e.empresaId === ctx.empresaId);
+    const base = new Map(current.map((e) => [e.matricula.trim().toLowerCase(), e.status]));
+    const validation = validateRows(rows, { cnpjs: cnpjs.map((c) => c.cnpj), modo, base });
     const now = new Date().toISOString();
     const id = `upl-${Date.now()}`;
 
-    const current = db.employees.filter((e) => e.empresaId === ctx.empresaId);
     const computed = validation.temErroCritico
       ? null
-      : computeDiff(current, rows, cnpjs, ctx.empresaId, now);
+      : computeDiff(current, rows, cnpjs, ctx.empresaId, now, modo);
     const diff = computed?.diff ?? { novos: [], naoEncontrados: [], alterados: [] };
 
     const upload: Upload = {
       id, empresaId: ctx.empresaId, arquivo: file.name, tamanho: file.size, data: now, usuario: ctx.usuario,
-      origem: "upload_manual", status: validation.temErroCritico ? "com_erros" : "validado", validation,
+      origem: "upload_manual", modo, status: validation.temErroCritico ? "com_erros" : "validado", validation,
       total: validation.totalRegistros, novos: diff.novos.length, naoEncontrados: diff.naoEncontrados.length,
       alterados: diff.alterados.length, diff,
     };
@@ -92,6 +94,7 @@ export const uploadsService = {
   /** Cria uma nova versão imutável da base a partir da análise aprovada. */
   confirm(id: string): { upload: Upload; version: BaseVersion } | null {
     const ctx = getContext();
+    if (ctx.perfil !== "rh") return null;
     const computed = pendingComputed.get(id);
     const upload = uploadsService.get(id);
     if (!computed || !upload || upload.status !== "validado") return null;
@@ -122,6 +125,15 @@ export const uploadsService = {
         }));
       }
       for (const change of computed.diff.alterados) {
+        if (upload.modo === "desligamentos") {
+          const quando = change.mudancas.find((m) => m.campo === "Data de desligamento")?.novo ?? "";
+          events.push(makeAuditEvent(ctx, {
+            data: now, acao: "colaborador_desligado", entidadeTipo: "colaborador", entidadeId: change.id, entidadeNome: change.nome,
+            valorAnterior: change.mudancas.find((m) => m.campo === "Status")?.anterior, valorNovo: `Desligado em ${quando}`,
+            descricao: `${change.nome} marcado(a) como desligado(a) na versão ${numero}`,
+          }));
+          continue;
+        }
         for (const m of change.mudancas) {
           events.push(makeAuditEvent(ctx, {
             data: now, acao: m.campo === "CNPJ" ? "cnpj_alterado" : "colaborador_alterado", entidadeTipo: "colaborador",

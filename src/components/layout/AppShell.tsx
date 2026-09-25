@@ -5,18 +5,19 @@ import { Star4 } from "@/components/status/StatusBadge";
 import { Wordmark } from "@/components/common/Wordmark";
 import { authService } from "@/services/authService";
 import { useDatabase } from "@/services/database";
+import type { PerfilUsuario } from "@/types";
 
-export function AppShell() {
+export function AppShell({ perfil }: { perfil: PerfilUsuario }) {
   useDatabase();
-  const { pathname } = useLocation();
+  const { pathname, key } = useLocation();
 
   useEffect(() => {
     document.getElementById("main-scroll")?.scrollTo({ top: 0 });
   }, [pathname]);
 
-  if (!authService.isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
+  const user = authService.currentUser();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.perfil !== perfil) return <Navigate to={user.perfil === "guapeco" ? "/guapeco" : "/"} replace />;
 
   return (
     <div className="flex h-dvh bg-background">
@@ -31,7 +32,7 @@ export function AppShell() {
         </header>
         <main id="main-scroll" className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[84rem] px-4 pt-4 pb-16 md:px-8">
-            <Outlet />
+            <Outlet key={key} />
           </div>
         </main>
       </div>

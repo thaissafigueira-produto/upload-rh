@@ -11,17 +11,29 @@ import type {
   FieldChange,
   Upload,
   Usuario,
+  ValidationSummary,
   VinculoCnpj,
 } from "@/types";
 
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const DEMO_EMPRESA_ID = "emp-venturus";
+
 export const DEMO_USUARIO: Usuario = {
   id: "usr-maria",
   empresaId: DEMO_EMPRESA_ID,
+  perfil: "rh",
   nome: "Maria Souza",
   email: "maria.souza@venturus.com.br",
   cargo: "Analista de RH",
+};
+
+export const GUAPECO_USUARIO: Usuario = {
+  id: "usr-guapeco",
+  empresaId: "",
+  perfil: "guapeco",
+  nome: "Ana Costa",
+  email: "ana.costa@guapeco.com.br",
+  cargo: "Financeiro Guapeco",
 };
 
 const FIRST_NAMES = [
@@ -53,40 +65,170 @@ const CARGOS: Record<string, string[]> = {
   Operações: ["Analista de Operações", "Coordenador(a) de Operações", "Especialista em Logística", "Gerente de Operações"],
 };
 
-const CNPJS: Cnpj[] = [
-  { id: "cnpj-1", empresaId: DEMO_EMPRESA_ID, cnpj: "12.345.678/0001-01", razaoSocial: "Venturus Centro de Inovação Ltda", ativo: true },
-  { id: "cnpj-2", empresaId: DEMO_EMPRESA_ID, cnpj: "12.345.678/0002-82", razaoSocial: "Venturus Campinas Ltda", ativo: true },
-  { id: "cnpj-3", empresaId: DEMO_EMPRESA_ID, cnpj: "12.345.678/0003-63", razaoSocial: "Venturus Serviços Ltda", ativo: true },
-  { id: "cnpj-4", empresaId: DEMO_EMPRESA_ID, cnpj: "12.345.678/0004-44", razaoSocial: "Venturus Legado Ltda", ativo: false },
-];
-const ACTIVE_CNPJS = CNPJS.filter((c) => c.ativo).map((c) => c.cnpj);
-
-function normalize(text: string) {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
+const DDDS = ["11", "19", "21", "31", "41", "81"];
 
 const pad = (n: number, len: number) => String(n).padStart(len, "0");
 const at = (y: number, m: number, d: number, h = 14, min = 32) => new Date(y, m - 1, d, h, min).toISOString();
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
-function emailFor(nome: string, suffix = "") {
-  const parts = normalize(nome).split(" ");
-  return `${parts[0]}.${parts[parts.length - 1]}${suffix}@venturus.com.br`;
+function normalize(text: string) {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-interface Identity {
-  id: string;
-  nome: string;
-  matricula: string;
-  departamento: string;
-  cargo: string;
-  cnpj: string;
+interface CompanyConfig {
+  empresa: Empresa;
+  prefix: string;
+  domain: string;
+  seed: number;
+  identities: number;
+  cnpjs: Omit<Cnpj, "empresaId">[];
+  /** Limites acumulados para sortear o CNPJ dos ativos (tamanho = ativos - 1). */
+  weights: number[];
+  responsavel: string;
+  steps: { data: string; novos: number; nao: number; alterados: number }[];
+  conferencias: { competencia: string; apos: number; em: string }[];
+  pendente: string;
+  extras: { semCnpj: number; cnpjAlterados: number };
+  historicoComProblemas: boolean;
 }
 
-function buildIdentities(rand: () => number, count: number): Identity[] {
+const COMPANIES: CompanyConfig[] = [
+  {
+    empresa: { id: DEMO_EMPRESA_ID, nome: "Venturus", diaPrazoConferencia: 10 },
+    prefix: "VT",
+    domain: "venturus.com.br",
+    seed: 20260905,
+    identities: 170,
+    cnpjs: [
+      { id: "cnpj-1", cnpj: "12.345.678/0001-01", razaoSocial: "Venturus Centro de Inovação Ltda", ativo: true },
+      { id: "cnpj-2", cnpj: "12.345.678/0002-82", razaoSocial: "Venturus Campinas Ltda", ativo: true },
+      { id: "cnpj-3", cnpj: "12.345.678/0003-63", razaoSocial: "Venturus Serviços Ltda", ativo: true },
+      { id: "cnpj-4", cnpj: "12.345.678/0004-44", razaoSocial: "Venturus Legado Ltda", ativo: false },
+    ],
+    weights: [0.5, 0.78],
+    responsavel: "Maria Souza",
+    steps: [
+      { data: at(2026, 5, 5), novos: 118, nao: 0, alterados: 0 },
+      { data: at(2026, 6, 5), novos: 12, nao: 4, alterados: 9 },
+      { data: at(2026, 7, 5), novos: 10, nao: 3, alterados: 11 },
+      { data: at(2026, 8, 5), novos: 9, nao: 6, alterados: 10 },
+      { data: at(2026, 9, 5), novos: 10, nao: 8, alterados: 12 },
+    ],
+    conferencias: [
+      { competencia: "2026-06", apos: 2, em: at(2026, 6, 8, 10, 15) },
+      { competencia: "2026-07", apos: 3, em: at(2026, 7, 9, 9, 40) },
+      { competencia: "2026-08", apos: 4, em: at(2026, 8, 7, 16, 5) },
+      { competencia: "2026-09", apos: 5, em: at(2026, 9, 8, 11, 20) },
+    ],
+    pendente: "2026-10",
+    extras: { semCnpj: 3, cnpjAlterados: 6 },
+    historicoComProblemas: true,
+  },
+  {
+    empresa: { id: "emp-lumia", nome: "Lumia Saúde", diaPrazoConferencia: 10 },
+    prefix: "LM",
+    domain: "lumiasaude.com.br",
+    seed: 71024,
+    identities: 74,
+    cnpjs: [
+      { id: "cnpj-lm-1", cnpj: "45.678.901/0001-10", razaoSocial: "Lumia Saúde Matriz Ltda", ativo: true },
+      { id: "cnpj-lm-2", cnpj: "45.678.901/0002-91", razaoSocial: "Lumia Clínicas Ltda", ativo: true },
+    ],
+    weights: [0.6],
+    responsavel: "Paula Ferraz",
+    steps: [
+      { data: at(2026, 7, 6, 10, 5), novos: 52, nao: 0, alterados: 0 },
+      { data: at(2026, 8, 6, 10, 20), novos: 9, nao: 2, alterados: 5 },
+      { data: at(2026, 9, 14, 9, 45), novos: 8, nao: 3, alterados: 6 },
+    ],
+    conferencias: [
+      { competencia: "2026-08", apos: 2, em: at(2026, 8, 8, 15, 30) },
+      { competencia: "2026-09", apos: 3, em: at(2026, 9, 16, 11, 0) },
+    ],
+    pendente: "2026-10",
+    extras: { semCnpj: 2, cnpjAlterados: 3 },
+    historicoComProblemas: false,
+  },
+  {
+    empresa: { id: "emp-nordeste", nome: "Nordeste Logística", diaPrazoConferencia: 10 },
+    prefix: "NL",
+    domain: "nordestelog.com.br",
+    seed: 33871,
+    identities: 130,
+    cnpjs: [
+      { id: "cnpj-nl-1", cnpj: "31.402.550/0001-07", razaoSocial: "Nordeste Logística S.A.", ativo: true },
+      { id: "cnpj-nl-2", cnpj: "31.402.550/0002-98", razaoSocial: "Nordeste Transportes Ltda", ativo: true },
+      { id: "cnpj-nl-3", cnpj: "31.402.550/0003-79", razaoSocial: "Nordeste Armazéns Ltda", ativo: true },
+    ],
+    weights: [0.45, 0.8],
+    responsavel: "Rogério Lima",
+    steps: [
+      { data: at(2026, 5, 12, 9, 10), novos: 90, nao: 0, alterados: 0 },
+      { data: at(2026, 6, 12, 9, 25), novos: 14, nao: 3, alterados: 8 },
+      { data: at(2026, 7, 12, 9, 15), novos: 10, nao: 5, alterados: 9 },
+      { data: at(2026, 7, 28, 16, 40), novos: 6, nao: 4, alterados: 7 },
+    ],
+    conferencias: [
+      { competencia: "2026-06", apos: 2, em: at(2026, 6, 15, 10, 0) },
+      { competencia: "2026-07", apos: 3, em: at(2026, 7, 14, 14, 20) },
+      { competencia: "2026-08", apos: 4, em: at(2026, 8, 12, 11, 45) },
+    ],
+    pendente: "2026-09",
+    extras: { semCnpj: 1, cnpjAlterados: 2 },
+    historicoComProblemas: false,
+  },
+  {
+    empresa: { id: "emp-aurora", nome: "Aurora Varejo", diaPrazoConferencia: 10 },
+    prefix: "AV",
+    domain: "auroravarejo.com.br",
+    seed: 90512,
+    identities: 52,
+    cnpjs: [
+      { id: "cnpj-av-1", cnpj: "58.190.774/0001-30", razaoSocial: "Aurora Varejo S.A.", ativo: true },
+      { id: "cnpj-av-2", cnpj: "58.190.774/0002-11", razaoSocial: "Aurora Lojas Ltda", ativo: true },
+    ],
+    weights: [0.55],
+    responsavel: "Beatriz Nogueira",
+    steps: [
+      { data: at(2026, 8, 3, 11, 0), novos: 40, nao: 0, alterados: 0 },
+      { data: at(2026, 9, 2, 11, 10), novos: 6, nao: 2, alterados: 4 },
+    ],
+    conferencias: [{ competencia: "2026-09", apos: 2, em: at(2026, 9, 4, 14, 50) }],
+    pendente: "2026-10",
+    extras: { semCnpj: 0, cnpjAlterados: 1 },
+    historicoComProblemas: false,
+  },
+];
+
+interface Shared {
+  auditSeq: number;
+}
+
+function okValidation(total: number): ValidationSummary {
+  return {
+    totalRegistros: total, registrosValidos: total, erros: 0, duplicados: 0, emailsInvalidos: 0,
+    camposObrigatoriosAusentes: 0, cnpjsNaoCadastrados: 0, problemasDeBase: 0, errosDetalhados: [], temErroCritico: false,
+  };
+}
+
+function buildCompany(cfg: CompanyConfig, shared: Shared) {
+  const rand = mulberry32(cfg.seed);
+  const empresaId = cfg.empresa.id;
+  const cnpjs: Cnpj[] = cfg.cnpjs.map((c) => ({ ...c, empresaId }));
+  const activeCnpjs = cnpjs.filter((c) => c.ativo).map((c) => c.cnpj);
+  const usuario = cfg.responsavel;
+  const lower = cfg.prefix.toLowerCase();
+
+  const emailFor = (nome: string, suffix = "") => {
+    const parts = normalize(nome).split(" ");
+    return `${parts[0]}.${parts[parts.length - 1]}${suffix}@${cfg.domain}`;
+  };
+  const phone = () => `(${pick(rand, DDDS)}) 9${pad(Math.floor(rand() * 10000), 4)}-${pad(Math.floor(rand() * 10000), 4)}`;
+
+  interface Identity { id: string; nome: string; matricula: string; departamento: string; cargo: string; cnpj: string }
   const used = new Set<string>();
-  const out: Identity[] = [];
-  for (let i = 0; i < count; i++) {
+  const identities: Identity[] = [];
+  for (let i = 0; i < cfg.identities; i++) {
     let nome = "";
     do {
       nome = `${pick(rand, FIRST_NAMES)} ${pick(rand, LAST_NAMES)}`;
@@ -94,58 +236,38 @@ function buildIdentities(rand: () => number, count: number): Identity[] {
     used.add(normalize(nome));
     const departamento = DEPARTMENTS[i % DEPARTMENTS.length];
     const roll = rand();
-    out.push({
-      id: `col-${pad(i + 1, 4)}`,
+    const idx = cfg.weights.findIndex((w) => roll < w);
+    identities.push({
+      id: `col-${lower}-${pad(i + 1, 4)}`,
       nome,
-      matricula: `VT${pad(i + 1, 5)}`,
+      matricula: `${cfg.prefix}${pad(i + 1, 5)}`,
       departamento,
       cargo: pick(rand, CARGOS[departamento]),
-      cnpj: roll < 0.5 ? ACTIVE_CNPJS[0] : roll < 0.78 ? ACTIVE_CNPJS[1] : ACTIVE_CNPJS[2],
+      cnpj: activeCnpjs[idx === -1 ? activeCnpjs.length - 1 : idx],
     });
   }
-  return out;
-}
 
-const STEPS = [
-  { data: at(2026, 5, 5), novos: 118, nao: 0, alterados: 0 },
-  { data: at(2026, 6, 5), novos: 12, nao: 4, alterados: 9 },
-  { data: at(2026, 7, 5), novos: 10, nao: 3, alterados: 11 },
-  { data: at(2026, 8, 5), novos: 9, nao: 6, alterados: 10 },
-  { data: at(2026, 9, 5), novos: 10, nao: 8, alterados: 12 },
-];
-
-const CONFERENCIAS_CONFIRMADAS = [
-  { competencia: "2026-06", apos: 2, em: at(2026, 6, 8, 10, 15) },
-  { competencia: "2026-07", apos: 3, em: at(2026, 7, 9, 9, 40) },
-  { competencia: "2026-08", apos: 4, em: at(2026, 8, 7, 16, 5) },
-  { competencia: "2026-09", apos: 5, em: at(2026, 9, 8, 11, 20) },
-];
-
-export function generateDemoDatabase(): Database {
-  const rand = mulberry32(20260905);
-  const identities = buildIdentities(rand, 170);
   const records = new Map<string, Employee>();
   const audit: AuditEvent[] = [];
   const uploads: Upload[] = [];
   const versions: BaseVersion[] = [];
   const conferencias: ConferenciaCnpj[] = [];
-  const usuario = DEMO_USUARIO.nome;
-  let auditSeq = 0;
 
   const pushAudit = (ev: Omit<AuditEvent, "id" | "empresaId" | "usuario">) => {
-    auditSeq += 1;
-    audit.push({ id: `aud-${pad(auditSeq, 5)}`, empresaId: DEMO_EMPRESA_ID, usuario, ...ev });
+    shared.auditSeq += 1;
+    audit.push({ id: `aud-${pad(shared.auditSeq, 6)}`, empresaId, usuario, ...ev });
   };
 
   const toEmployee = (identity: Identity, data: string): Employee => ({
     id: identity.id,
-    empresaId: DEMO_EMPRESA_ID,
+    empresaId,
     nome: identity.nome,
     email: emailFor(identity.nome),
     matricula: identity.matricula,
     cnpj: identity.cnpj,
     departamento: identity.departamento,
     cargo: identity.cargo,
+    telefone: phone(),
     status: "ativo",
     beneficio: rand() < 0.72 ? "com_adesao" : "sem_adesao",
     dataEntrada: data,
@@ -158,13 +280,15 @@ export function generateDemoDatabase(): Database {
       .map((e) => ({ employeeId: e.id, nome: e.nome, matricula: e.matricula, cnpj: e.cnpj }));
 
   let cursor = 0;
-  STEPS.forEach((step, s) => {
+  let lastNovosStart = 0;
+  cfg.steps.forEach((step, s) => {
     const numero = s + 1;
-    const isLast = s === STEPS.length - 1;
-    const uploadId = `upl-${numero}`;
+    const isLast = s === cfg.steps.length - 1;
+    const uploadId = `upl-${empresaId}-${numero}`;
     const arquivo = `base-colaboradores-${step.data.slice(0, 10)}.xlsx`;
 
     const novos: Employee[] = [];
+    lastNovosStart = cursor;
     for (const identity of identities.slice(cursor, cursor + step.novos)) {
       const employee = toEmployee(identity, step.data);
       records.set(identity.id, employee);
@@ -182,8 +306,9 @@ export function generateDemoDatabase(): Database {
     if (step.nao > 0) {
       const withAdesao = pool().filter((e) => e.beneficio === "com_adesao");
       const withoutAdesao = pool().filter((e) => e.beneficio === "sem_adesao");
+      const nComAdesao = isLast ? Math.min(step.nao, Math.max(2, step.nao - 3)) : 0;
       const chosen = isLast
-        ? [...pickN(rand, withAdesao, 5), ...pickN(rand, withoutAdesao, step.nao - 5)]
+        ? [...pickN(rand, withAdesao, nComAdesao), ...pickN(rand, withoutAdesao, step.nao - nComAdesao)]
         : pickN(rand, pool(), step.nao);
       for (const employee of chosen) {
         naoEncontrados.push(clone(employee));
@@ -203,7 +328,7 @@ export function generateDemoDatabase(): Database {
       const mudancas: FieldChange[] = [];
       const roll = rand();
       if (roll < 0.35) {
-        const novo = pick(rand, ACTIVE_CNPJS.filter((c) => c !== employee.cnpj));
+        const novo = pick(rand, activeCnpjs.filter((c) => c !== employee.cnpj));
         mudancas.push({ campo: "CNPJ", anterior: employee.cnpj, novo, destaque: true });
         employee.cnpj = novo;
       } else if (roll < 0.6) {
@@ -235,18 +360,15 @@ export function generateDemoDatabase(): Database {
     }
 
     const total = [...records.values()].filter((e) => e.status !== "desligado").length;
-    const versaoId = `ver-${numero}`;
+    const versaoId = `ver-${empresaId}-${numero}`;
     versions.push({
-      id: versaoId, empresaId: DEMO_EMPRESA_ID, numero, data: step.data, usuario, arquivo,
+      id: versaoId, empresaId, numero, data: step.data, usuario, arquivo,
       origem: "upload_manual", uploadId, total, colaboradores: clone([...records.values()]),
     });
     uploads.push({
-      id: uploadId, empresaId: DEMO_EMPRESA_ID, arquivo, tamanho: 30000 + Math.round(rand() * 20000),
-      data: step.data, usuario, origem: "upload_manual", status: "confirmada", versaoId,
-      validation: {
-        totalRegistros: total, registrosValidos: total, erros: 0, duplicados: 0, emailsInvalidos: 0,
-        camposObrigatoriosAusentes: 0, cnpjsNaoCadastrados: 0, errosDetalhados: [], temErroCritico: false,
-      },
+      id: uploadId, empresaId, arquivo, tamanho: 30000 + Math.round(rand() * 20000),
+      data: step.data, usuario, origem: "upload_manual", modo: "completa", status: "confirmada", versaoId,
+      validation: okValidation(total),
       total, novos: novos.length, naoEncontrados: naoEncontrados.length, alterados: alterados.length,
       diff: { novos, naoEncontrados, alterados },
     });
@@ -270,35 +392,36 @@ export function generateDemoDatabase(): Database {
       }
     }
 
-    const conferencia = CONFERENCIAS_CONFIRMADAS.find((c) => c.apos === numero);
+    const conferencia = cfg.conferencias.find((c) => c.apos === numero);
     if (conferencia) {
       const [ano, mes] = conferencia.competencia.split("-").map(Number);
       conferencias.push({
-        id: `conf-${conferencia.competencia}`, empresaId: DEMO_EMPRESA_ID, competencia: conferencia.competencia,
-        prazo: at(ano, mes, 10, 23, 59), status: "confirmada", confirmadoPor: usuario,
+        id: `conf-${empresaId}-${conferencia.competencia}`, empresaId, competencia: conferencia.competencia,
+        prazo: at(ano, mes, cfg.empresa.diaPrazoConferencia, 23, 59), status: "confirmada", confirmadoPor: usuario,
         confirmadoEm: conferencia.em, vinculos: vinculosAgora(),
       });
       pushAudit({
         data: conferencia.em, acao: "conferencia_confirmada", entidadeTipo: "conferencia",
-        entidadeId: `conf-${conferencia.competencia}`, entidadeNome: `Conferência ${pad(mes, 2)}/${ano}`,
+        entidadeId: `conf-${empresaId}-${conferencia.competencia}`, entidadeNome: `Conferência ${pad(mes, 2)}/${ano}`,
         descricao: `Conferência de CNPJs de ${pad(mes, 2)}/${ano} confirmada`,
       });
     }
   });
 
-  // Após a última conferência: alguns colaboradores com adesão trocaram de CNPJ e outros ficaram sem CNPJ.
-  const lastNovos = identities.slice(cursor - STEPS[4].novos, cursor);
-  for (const identity of lastNovos.slice(0, 3)) {
+  // Depois da última conferência: alguns colaboradores com adesão ficaram sem CNPJ e outros trocaram de CNPJ.
+  const lastNovos = identities.slice(lastNovosStart, cursor);
+  const semCnpj = lastNovos.slice(0, cfg.extras.semCnpj);
+  for (const identity of semCnpj) {
     const employee = records.get(identity.id)!;
     employee.beneficio = "com_adesao";
     employee.cnpj = "";
   }
-  const semCnpjIds = new Set(lastNovos.slice(0, 3).map((i) => i.id));
+  const semCnpjIds = new Set(semCnpj.map((i) => i.id));
   const candidatos = [...records.values()].filter(
     (e) => e.status === "ativo" && e.beneficio === "com_adesao" && e.cnpj && !semCnpjIds.has(e.id),
   );
-  pickN(rand, candidatos, 6).forEach((employee, idx) => {
-    const novo = pick(rand, ACTIVE_CNPJS.filter((c) => c !== employee.cnpj));
+  pickN(rand, candidatos, cfg.extras.cnpjAlterados).forEach((employee, idx) => {
+    const novo = pick(rand, activeCnpjs.filter((c) => c !== employee.cnpj));
     const data = at(2026, 9, 10 + idx * 2, 15, 10);
     pushAudit({
       data, acao: "cnpj_alterado", entidadeTipo: "colaborador", entidadeId: employee.id, entidadeNome: employee.nome,
@@ -308,50 +431,65 @@ export function generateDemoDatabase(): Database {
     employee.dataAtualizacao = data;
   });
 
+  const [pAno, pMes] = cfg.pendente.split("-").map(Number);
   conferencias.push({
-    id: "conf-2026-10", empresaId: DEMO_EMPRESA_ID, competencia: "2026-10", prazo: at(2026, 10, 10, 23, 59), status: "pendente",
+    id: `conf-${empresaId}-${cfg.pendente}`, empresaId, competencia: cfg.pendente,
+    prazo: at(pAno, pMes, cfg.empresa.diaPrazoConferencia, 23, 59), status: "pendente",
   });
 
-  // Tentativas anteriores que não viraram versão (aparecem no histórico como "Com erros" e "Cancelada").
-  const okValidation = (total: number) => ({
-    totalRegistros: total, registrosValidos: total, erros: 0, duplicados: 0, emailsInvalidos: 0,
-    camposObrigatoriosAusentes: 0, cnpjsNaoCadastrados: 0, errosDetalhados: [], temErroCritico: false,
-  });
-  const emptyDiff = { novos: [], naoEncontrados: [], alterados: [] };
-  const comErrosData = at(2026, 6, 3, 9, 12);
-  uploads.push({
-    id: "upl-erro-1", empresaId: DEMO_EMPRESA_ID, arquivo: "base-colaboradores-rascunho.xlsx", tamanho: 41200,
-    data: comErrosData, usuario, origem: "upload_manual", status: "com_erros", total: 130, novos: 0, naoEncontrados: 0, alterados: 0,
-    diff: emptyDiff,
-    validation: {
-      totalRegistros: 130, registrosValidos: 127, erros: 3, duplicados: 0, emailsInvalidos: 1,
-      camposObrigatoriosAusentes: 1, cnpjsNaoCadastrados: 1, temErroCritico: true,
-      errosDetalhados: [
-        { linha: 14, colaborador: "Colaborador de exemplo", campo: "E-mail corporativo", problema: "O e-mail não está em um formato válido" },
-        { linha: 52, colaborador: "Colaborador de exemplo", campo: "Matrícula", problema: "Campo obrigatório não preenchido" },
-        { linha: 87, colaborador: "Colaborador de exemplo", campo: "CNPJ", problema: "Este CNPJ não pertence à sua empresa" },
-      ],
-    },
-  });
-  uploads.push({
-    id: "upl-cancelada-1", empresaId: DEMO_EMPRESA_ID, arquivo: "base-colaboradores-teste.xlsx", tamanho: 39800,
-    data: at(2026, 8, 1, 17, 45), usuario, origem: "upload_manual", status: "cancelada", total: 141, novos: 0, naoEncontrados: 0, alterados: 0,
-    diff: emptyDiff, validation: okValidation(141),
-  });
-  pushAudit({ data: comErrosData, acao: "upload_iniciado", entidadeTipo: "upload", entidadeId: "upl-erro-1", entidadeNome: "base-colaboradores-rascunho.xlsx", descricao: "Upload da planilha base-colaboradores-rascunho.xlsx" });
-  pushAudit({ data: at(2026, 8, 1, 17, 45), acao: "upload_cancelado", entidadeTipo: "upload", entidadeId: "upl-cancelada-1", entidadeNome: "base-colaboradores-teste.xlsx", descricao: "Atualização cancelada antes da confirmação" });
+  if (cfg.historicoComProblemas) {
+    const comErrosData = at(2026, 6, 3, 9, 12);
+    uploads.push({
+      id: `upl-${empresaId}-erro-1`, empresaId, arquivo: "base-colaboradores-rascunho.xlsx", tamanho: 41200,
+      data: comErrosData, usuario, origem: "upload_manual", modo: "completa", status: "com_erros",
+      total: 130, novos: 0, naoEncontrados: 0, alterados: 0,
+      diff: { novos: [], naoEncontrados: [], alterados: [] },
+      validation: {
+        totalRegistros: 130, registrosValidos: 127, erros: 3, duplicados: 0, emailsInvalidos: 1,
+        camposObrigatoriosAusentes: 1, cnpjsNaoCadastrados: 1, problemasDeBase: 0, temErroCritico: true,
+        errosDetalhados: [
+          { linha: 14, colaborador: "Colaborador de exemplo", campo: "E-mail corporativo", problema: "O e-mail não está em um formato válido" },
+          { linha: 52, colaborador: "Colaborador de exemplo", campo: "Matrícula", problema: "Campo obrigatório não preenchido" },
+          { linha: 87, colaborador: "Colaborador de exemplo", campo: "CNPJ", problema: "Este CNPJ não pertence à sua empresa" },
+        ],
+      },
+    });
+    uploads.push({
+      id: `upl-${empresaId}-cancelada-1`, empresaId, arquivo: "base-colaboradores-teste.xlsx", tamanho: 39800,
+      data: at(2026, 8, 1, 17, 45), usuario, origem: "upload_manual", modo: "completa", status: "cancelada",
+      total: 141, novos: 0, naoEncontrados: 0, alterados: 0,
+      diff: { novos: [], naoEncontrados: [], alterados: [] }, validation: okValidation(141),
+    });
+    pushAudit({ data: comErrosData, acao: "upload_iniciado", entidadeTipo: "upload", entidadeId: `upl-${empresaId}-erro-1`, entidadeNome: "base-colaboradores-rascunho.xlsx", descricao: "Upload da planilha base-colaboradores-rascunho.xlsx" });
+    pushAudit({ data: at(2026, 8, 1, 17, 45), acao: "upload_cancelado", entidadeTipo: "upload", entidadeId: `upl-${empresaId}-cancelada-1`, entidadeNome: "base-colaboradores-teste.xlsx", descricao: "Atualização cancelada antes da confirmação" });
+  }
 
-  const empresa: Empresa = { id: DEMO_EMPRESA_ID, nome: "Venturus", diaPrazoConferencia: 10 };
+  return { cnpjs, employees: [...records.values()], uploads, versions, conferencias, audit };
+}
 
-  return {
+export function generateDemoDatabase(): Database {
+  const shared: Shared = { auditSeq: 0 };
+  const db: Database = {
     version: DB_VERSION,
-    empresas: [empresa],
-    cnpjs: CNPJS,
-    usuarios: [DEMO_USUARIO],
-    employees: [...records.values()],
-    uploads: uploads.sort((a, b) => a.data.localeCompare(b.data)),
-    versions,
-    conferencias,
-    audit: audit.sort((a, b) => a.data.localeCompare(b.data)),
+    empresas: COMPANIES.map((c) => c.empresa),
+    cnpjs: [],
+    usuarios: [DEMO_USUARIO, GUAPECO_USUARIO],
+    employees: [],
+    uploads: [],
+    versions: [],
+    conferencias: [],
+    audit: [],
   };
+  for (const cfg of COMPANIES) {
+    const built = buildCompany(cfg, shared);
+    db.cnpjs.push(...built.cnpjs);
+    db.employees.push(...built.employees);
+    db.uploads.push(...built.uploads);
+    db.versions.push(...built.versions);
+    db.conferencias.push(...built.conferencias);
+    db.audit.push(...built.audit);
+  }
+  db.uploads.sort((a, b) => a.data.localeCompare(b.data));
+  db.audit.sort((a, b) => a.data.localeCompare(b.data));
+  return db;
 }

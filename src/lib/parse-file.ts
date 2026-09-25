@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
-import type { ParsedRow } from "@/types";
+import { normalizeDate } from "@/lib/dates";
+import type { ModoEnvio, ParsedRow } from "@/types";
 
 const HEADER_MAP: Record<string, keyof ParsedRow> = {
   nome: "nome",
@@ -9,18 +10,37 @@ const HEADER_MAP: Record<string, keyof ParsedRow> = {
   matricula: "matricula",
   cnpj: "cnpj",
   departamento: "departamento",
+  setor: "departamento",
   cargo: "cargo",
+  telefone: "telefone",
   status: "status",
+  "data de desligamento": "dataDesligamento",
+  "data desligamento": "dataDesligamento",
+  desligamento: "dataDesligamento",
 };
 
-const REQUIRED: { key: keyof ParsedRow; label: string }[] = [
-  { key: "nome", label: "Nome" },
-  { key: "email", label: "E-mail corporativo" },
-  { key: "matricula", label: "Matrícula" },
-  { key: "cnpj", label: "CNPJ" },
-];
+const REQUIRED_BY_MODE: Record<ModoEnvio, { key: keyof ParsedRow; label: string }[]> = {
+  completa: [
+    { key: "nome", label: "Nome" },
+    { key: "email", label: "E-mail corporativo" },
+    { key: "matricula", label: "Matrícula" },
+    { key: "cnpj", label: "CNPJ" },
+  ],
+  novos: [
+    { key: "nome", label: "Nome" },
+    { key: "email", label: "E-mail corporativo" },
+    { key: "matricula", label: "Matrícula" },
+    { key: "cnpj", label: "CNPJ" },
+  ],
+  desligamentos: [
+    { key: "matricula", label: "Matrícula" },
+    { key: "dataDesligamento", label: "Data de desligamento" },
+  ],
+};
 
-const CONTENT_FIELDS: (keyof ParsedRow)[] = ["nome", "email", "matricula", "cnpj", "departamento", "cargo", "status"];
+const CONTENT_FIELDS: (keyof ParsedRow)[] = [
+  "nome", "email", "matricula", "cnpj", "departamento", "cargo", "telefone", "status", "dataDesligamento",
+];
 
 function normalizeHeader(header: string) {
   return header
@@ -34,11 +54,11 @@ export class ParseError extends Error {}
 
 export interface ParseResult {
   rows: ParsedRow[];
-  /** Linhas com no máximo um campo preenchido: provável anotação ou separador, não um colaborador. */
+  /** Linhas com pouco conteúdo: provável anotação ou separador, não um colaborador. */
   linhasIgnoradas: number;
 }
 
-export async function parseEmployeeFile(file: File): Promise<ParseResult> {
+export async function parseEmployeeFile(file: File, modo: ModoEnvio = "completa"): Promise<ParseResult> {
   const name = file.name.toLowerCase();
   const isCsv = name.endsWith(".csv");
   const isSpreadsheet = name.endsWith(".xlsx") || name.endsWith(".xls");
@@ -76,12 +96,15 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
     if (mapped && columnIndex[mapped] === undefined) columnIndex[mapped] = idx;
   });
 
-  const missing = REQUIRED.filter((field) => columnIndex[field.key] === undefined).map((field) => field.label);
+  const missing = REQUIRED_BY_MODE[modo].filter((field) => columnIndex[field.key] === undefined).map((field) => field.label);
   if (missing.length > 0) {
     throw new ParseError(
       `O arquivo não segue o modelo esperado. Colunas ausentes: ${missing.join(", ")}. Baixe o modelo para conferir.`,
     );
   }
+
+  // Na lista de desligamentos uma linha só com a matrícula ainda é uma linha de dados (falta a data).
+  const minFilled = modo === "desligamentos" ? 1 : 2;
 
   const parsed: ParsedRow[] = [];
   let linhasIgnoradas = 0;
@@ -92,6 +115,7 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
       const idx = columnIndex[key];
       return idx === undefined ? "" : String(raw[idx] ?? "").trim();
     };
+    const dataRaw = get("dataDesligamento");
     const row: ParsedRow = {
       linha: i + 1,
       nome: get("nome"),
@@ -100,11 +124,12 @@ export async function parseEmployeeFile(file: File): Promise<ParseResult> {
       cnpj: get("cnpj"),
       departamento: get("departamento"),
       cargo: get("cargo"),
+      telefone: get("telefone"),
       status: get("status"),
+      dataDesligamento: normalizeDate(dataRaw) ?? dataRaw,
     };
 
-    const filledFields = CONTENT_FIELDS.filter((key) => row[key]).length;
-    if (filledFields <= 1) {
+    if (CONTENT_FIELDS.filter((key) => row[key]).length < minFilled) {
       linhasIgnoradas += 1;
       continue;
     }

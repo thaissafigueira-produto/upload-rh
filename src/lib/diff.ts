@@ -1,5 +1,8 @@
 import { onlyDigits } from "@/lib/cnpj";
-import type { Cnpj, Employee, EmployeeDiffChanged, EmployeeStatus, FieldChange, ParsedRow, VersionDiff } from "@/types";
+import { isoDateToBR, isoDateToNoon, normalizeDate } from "@/lib/dates";
+import type {
+  Cnpj, Employee, EmployeeDiffChanged, EmployeeStatus, FieldChange, ModoEnvio, ParsedRow, VersionDiff,
+} from "@/types";
 
 export const STATUS_LABEL: Record<EmployeeStatus, string> = {
   ativo: "Ativo",
@@ -16,14 +19,16 @@ export interface ComputedDiff {
   nextEmployees: Employee[];
 }
 
-/** Compara a nova base com a base atual da empresa. Quem sumiu da planilha não é apagado:
- * passa a "Não encontrado na última base" para o RH decidir. */
+/** Compara o arquivo com a base atual. Na base completa, quem sumiu da planilha não é apagado:
+ * passa a "Não encontrado na última base" para o RH decidir. Nos envios parciais (só novos ou só
+ * desligamentos) ninguém é marcado como não encontrado. */
 export function computeDiff(
   currentEmployees: Employee[],
   rows: ParsedRow[],
   cnpjs: Cnpj[],
   empresaId: string,
   now: string,
+  modo: ModoEnvio = "completa",
 ): ComputedDiff {
   const employees = currentEmployees.map((e) => ({ ...e }));
   const byMatricula = new Map(employees.map((e) => [e.matricula.trim().toLowerCase(), e]));
@@ -33,11 +38,31 @@ export function computeDiff(
   const novos: Employee[] = [];
   const alterados: EmployeeDiffChanged[] = [];
 
+  const desligamentoIso = (row: ParsedRow) => {
+    const date = normalizeDate(row.dataDesligamento);
+    return date ? isoDateToNoon(date) : now;
+  };
+
   for (const row of rows) {
     const key = row.matricula.trim().toLowerCase();
     if (!key) continue;
     seenMatriculas.add(key);
     const existing = byMatricula.get(key);
+
+    if (modo === "desligamentos") {
+      if (!existing) continue;
+      const quando = desligamentoIso(row);
+      const mudancas: FieldChange[] = [
+        { campo: "Status", anterior: STATUS_LABEL[existing.status], novo: STATUS_LABEL.desligado },
+        { campo: "Data de desligamento", anterior: "—", novo: isoDateToBR(quando.slice(0, 10)) },
+      ];
+      existing.status = "desligado";
+      existing.dataDesligamento = quando;
+      existing.dataAtualizacao = now;
+      alterados.push({ id: existing.id, nome: existing.nome, matricula: existing.matricula, mudancas });
+      continue;
+    }
+
     const cnpj = cnpjByDigits.get(onlyDigits(row.cnpj)) ?? row.cnpj;
     const incomingRaw = row.status.trim().toLowerCase();
 
@@ -52,17 +77,20 @@ export function computeDiff(
         cnpj,
         departamento: row.departamento,
         cargo: row.cargo,
+        telefone: row.telefone,
         status,
         beneficio: "sem_adesao",
         dataEntrada: now,
         dataAtualizacao: now,
-        dataDesligamento: status === "desligado" ? now : undefined,
+        dataDesligamento: status === "desligado" ? desligamentoIso(row) : undefined,
       };
       employees.push(created);
       byMatricula.set(key, created);
       novos.push(created);
       continue;
     }
+
+    if (modo === "novos") continue;
 
     const incomingStatus: EmployeeStatus =
       incomingRaw === "desligado" ? "desligado" : incomingRaw === "ativo" ? "ativo" : existing.status === "desligado" ? "desligado" : "ativo";
@@ -77,7 +105,10 @@ export function computeDiff(
     compare("CNPJ", existing.cnpj, cnpj, true);
     if (row.departamento) compare("Departamento", existing.departamento, row.departamento);
     if (row.cargo) compare("Cargo", existing.cargo, row.cargo);
+    if (row.telefone) compare("Telefone", existing.telefone, row.telefone);
     compare("Status", STATUS_LABEL[existing.status], STATUS_LABEL[incomingStatus]);
+    const quando = incomingStatus === "desligado" && existing.status !== "desligado" ? desligamentoIso(row) : undefined;
+    if (quando) mudancas.push({ campo: "Data de desligamento", anterior: "—", novo: isoDateToBR(quando.slice(0, 10)) });
 
     if (mudancas.length > 0) {
       existing.nome = row.nome;
@@ -85,9 +116,10 @@ export function computeDiff(
       existing.cnpj = cnpj;
       if (row.departamento) existing.departamento = row.departamento;
       if (row.cargo) existing.cargo = row.cargo;
+      if (row.telefone) existing.telefone = row.telefone;
       if (existing.status !== incomingStatus) {
         existing.status = incomingStatus;
-        existing.dataDesligamento = incomingStatus === "desligado" ? now : undefined;
+        existing.dataDesligamento = quando;
       }
       existing.dataAtualizacao = now;
       alterados.push({ id: existing.id, nome: existing.nome, matricula: existing.matricula, mudancas });
@@ -95,12 +127,14 @@ export function computeDiff(
   }
 
   const naoEncontrados: Employee[] = [];
-  for (const employee of employees) {
-    if (employee.status !== "ativo") continue;
-    if (seenMatriculas.has(employee.matricula.trim().toLowerCase())) continue;
-    naoEncontrados.push({ ...employee });
-    employee.status = "nao_encontrado";
-    employee.dataAtualizacao = now;
+  if (modo === "completa") {
+    for (const employee of employees) {
+      if (employee.status !== "ativo") continue;
+      if (seenMatriculas.has(employee.matricula.trim().toLowerCase())) continue;
+      naoEncontrados.push({ ...employee });
+      employee.status = "nao_encontrado";
+      employee.dataAtualizacao = now;
+    }
   }
 
   return { diff: { novos, naoEncontrados, alterados }, nextEmployees: employees };

@@ -17,13 +17,20 @@ export interface Cnpj {
   ativo: boolean;
 }
 
+export type PerfilUsuario = "rh" | "guapeco";
+
 export interface Usuario {
   id: string;
+  /** Vazio para a equipe Guapeco, que enxerga várias empresas. */
   empresaId: string;
+  perfil: PerfilUsuario;
   nome: string;
   email: string;
   cargo: string;
 }
+
+/** Como o RH está enviando a base: tudo de novo, só novos colaboradores ou só desligamentos. */
+export type ModoEnvio = "completa" | "novos" | "desligamentos";
 
 export interface Employee {
   id: string;
@@ -35,6 +42,7 @@ export interface Employee {
   cnpj: string;
   departamento: string;
   cargo: string;
+  telefone: string;
   status: EmployeeStatus;
   beneficio: BenefitStatus;
   dataEntrada: string;
@@ -78,6 +86,8 @@ export interface ValidationSummary {
   emailsInvalidos: number;
   camposObrigatoriosAusentes: number;
   cnpjsNaoCadastrados: number;
+  /** Problemas de casamento com a base atual (matrícula já existente / não encontrada / datas). */
+  problemasDeBase: number;
   errosDetalhados: ValidationErrorRow[];
   temErroCritico: boolean;
 }
@@ -92,6 +102,7 @@ export interface Upload {
   data: string;
   usuario: string;
   origem: OrigemBase;
+  modo: ModoEnvio;
   status: UploadStatus;
   validation: ValidationSummary;
   total: number;
@@ -147,8 +158,11 @@ export type AuditAction =
   | "colaborador_alterado"
   | "colaborador_nao_encontrado"
   | "colaborador_desligado"
+  | "colaborador_reativado"
   | "cnpj_alterado"
   | "cnpj_alterado_em_massa"
+  | "beneficio_alterado"
+  | "beneficio_alterado_em_massa"
   | "conferencia_confirmada"
   | "exportacao";
 
@@ -176,7 +190,10 @@ export interface ParsedRow {
   cnpj: string;
   departamento: string;
   cargo: string;
+  telefone: string;
   status: string;
+  /** Data de desligamento como veio na planilha (texto); normalizada em AAAA-MM-DD quando válida. */
+  dataDesligamento: string;
 }
 
 export interface Database {

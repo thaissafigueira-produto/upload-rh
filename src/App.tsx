@@ -3,6 +3,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import Cnpjs from "@/pages/Cnpjs";
 import Colaboradores from "@/pages/Colaboradores";
 import ConferenciaDetail from "@/pages/ConferenciaDetail";
+import GuapecoEmpresa from "@/pages/GuapecoEmpresa";
+import GuapecoEmpresas from "@/pages/GuapecoEmpresas";
 import History from "@/pages/History";
 import HistoryDetail from "@/pages/HistoryDetail";
 import Login from "@/pages/Login";
@@ -13,7 +15,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<AppShell />}>
+      <Route element={<AppShell perfil="guapeco" />}>
+        <Route path="/guapeco" element={<GuapecoEmpresas />} />
+        <Route path="/guapeco/empresas/:empresaId" element={<GuapecoEmpresa />} />
+      </Route>
+      <Route element={<AppShell perfil="rh" />}>
         <Route path="/" element={<Overview />} />
         <Route path="/colaboradores" element={<Colaboradores />} />
         <Route path="/atualizar-base" element={<UpdateBase />} />

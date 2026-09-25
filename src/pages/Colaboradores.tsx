@@ -1,12 +1,16 @@
+import { format } from "date-fns";
 import { ChevronRight, Filter, Search, UploadCloud, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Pagination } from "@/components/common/Pagination";
 import { EmployeeDetailSheet } from "@/components/employees/EmployeeDetailSheet";
 import { BenefitStatusBadge, EmployeeStatusBadge } from "@/components/status/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,6 +43,11 @@ export default function Colaboradores() {
   const [filtersOpen, setFiltersOpen] = useState(initialStatus !== "todos");
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkKind, setBulkKind] = useState<"cnpj" | "departamento" | "desligar" | null>(null);
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkDate, setBulkDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const cnpjsAtivos = cnpjService.listAtivos();
 
   const hasFilters = status !== "todos" || beneficio !== "todos" || cnpj !== "todos" || departamento !== "todos";
 
@@ -63,6 +72,20 @@ export default function Colaboradores() {
     setter(value);
     setPage(0);
   };
+
+  const allOnPageSelected = pageItems.length > 0 && pageItems.every((e) => selected.has(e.id));
+  const selectedCount = selected.size;
+
+  function applyBulk() {
+    const ids = [...selected];
+    if (bulkKind === "cnpj" && bulkValue) employeesService.bulkUpdateCnpj(ids, bulkValue);
+    else if (bulkKind === "departamento" && bulkValue.trim()) employeesService.bulkUpdateDepartamento(ids, bulkValue.trim());
+    else if (bulkKind === "desligar" && bulkDate) employeesService.bulkMarkAsDesligado(ids, bulkDate);
+    else return;
+    toast.success(`${ids.length} ${ids.length === 1 ? "colaborador atualizado" : "colaboradores atualizados"}.`);
+    setSelected(new Set());
+    setBulkKind(null);
+  }
 
   function clearFilters() {
     setStatus("todos");
@@ -152,6 +175,22 @@ export default function Colaboradores() {
         </div>
       )}
 
+      {selectedCount > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-lilac-soft px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">
+            {selectedCount} {selectedCount === 1 ? "colaborador selecionado" : "colaboradores selecionados"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
+            <Button variant="outline" size="sm" onClick={() => { setBulkValue(""); setBulkKind("cnpj"); }}>Alterar CNPJ</Button>
+            <Button variant="outline" size="sm" onClick={() => { setBulkValue(""); setBulkKind("departamento"); }}>Alterar departamento</Button>
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkKind("desligar")}>
+              Marcar como desligado
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-5 overflow-hidden rounded-2xl border border-border">
         {filtered.length === 0 ? (
           <div className="p-4">
@@ -165,6 +204,17 @@ export default function Colaboradores() {
           <Table className="text-[0.82rem]">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Selecionar todos desta página"
+                    checked={allOnPageSelected}
+                    onCheckedChange={(checked) => setSelected((prev) => {
+                      const next = new Set(prev);
+                      pageItems.forEach((e) => (checked ? next.add(e.id) : next.delete(e.id)));
+                      return next;
+                    })}
+                  />
+                </TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail corporativo</TableHead>
                 <TableHead>Matrícula</TableHead>
@@ -180,7 +230,19 @@ export default function Colaboradores() {
               {pageItems.map((e) => {
                 const razao = cnpjs.find((c) => c.cnpj === e.cnpj)?.razaoSocial;
                 return (
-                  <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelectedId(e.id)}>
+                  <TableRow key={e.id} className="cursor-pointer" data-state={selected.has(e.id) ? "selected" : undefined} onClick={() => setSelectedId(e.id)}>
+                    <TableCell onClick={(ev) => ev.stopPropagation()}>
+                      <Checkbox
+                        aria-label={`Selecionar ${e.nome}`}
+                        checked={selected.has(e.id)}
+                        onCheckedChange={(checked) => setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (checked === true) next.add(e.id);
+                          else next.delete(e.id);
+                          return next;
+                        })}
+                      />
+                    </TableCell>
                     <TableCell className="font-semibold text-foreground">{e.nome}</TableCell>
                     <TableCell className="max-w-[13rem] truncate text-muted-foreground" title={e.email}>{e.email}</TableCell>
                     <TableCell className="text-muted-foreground">{e.matricula}</TableCell>
@@ -210,6 +272,56 @@ export default function Colaboradores() {
       <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
 
       <EmployeeDetailSheet employeeId={selectedId} onClose={() => setSelectedId(null)} />
+
+      <Dialog open={bulkKind !== null} onOpenChange={(open) => !open && setBulkKind(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkKind === "cnpj" && "Alterar CNPJ em massa"}
+              {bulkKind === "departamento" && "Alterar departamento em massa"}
+              {bulkKind === "desligar" && "Marcar como desligados?"}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkKind === "desligar"
+                ? `Tem certeza que deseja marcar ${selectedCount} ${selectedCount === 1 ? "colaborador" : "colaboradores"} como desligado(s)? Quem tiver adesão ao benefício será informado à Guapeco.`
+                : `A alteração vale para ${selectedCount} ${selectedCount === 1 ? "colaborador selecionado" : "colaboradores selecionados"} e fica registrada na linha do tempo de cada um.`}
+            </DialogDescription>
+          </DialogHeader>
+          {bulkKind === "cnpj" && (
+            <Select value={bulkValue} onValueChange={setBulkValue}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Selecione o CNPJ" /></SelectTrigger>
+              <SelectContent>
+                {cnpjsAtivos.map((c) => <SelectItem key={c.id} value={c.cnpj}>{shortRazaoSocial(c.razaoSocial)} — {c.cnpj}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {bulkKind === "departamento" && (
+            <label className="flex flex-col gap-1.5 text-sm font-semibold text-foreground">
+              Novo departamento
+              <Input value={bulkValue} list="bulk-departamentos" onChange={(e) => setBulkValue(e.target.value)} />
+              <datalist id="bulk-departamentos">
+                {departamentos.map((d) => <option key={d} value={d} />)}
+              </datalist>
+            </label>
+          )}
+          {bulkKind === "desligar" && (
+            <label className="flex flex-col gap-1.5 text-sm font-semibold text-foreground">
+              Data do desligamento
+              <Input type="date" value={bulkDate} max={format(new Date(), "yyyy-MM-dd")} onChange={(e) => setBulkDate(e.target.value)} />
+            </label>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkKind(null)}>Cancelar</Button>
+            <Button
+              variant={bulkKind === "desligar" ? "destructive" : "default"}
+              disabled={bulkKind === "desligar" ? !bulkDate : !bulkValue.trim()}
+              onClick={applyBulk}
+            >
+              {bulkKind === "desligar" ? "Marcar como desligados" : "Aplicar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
